@@ -103,7 +103,15 @@ async def start_cmd(message: types.Message, state: FSMContext):
     conn = await get_db_conn()
     await conn.execute('INSERT INTO users (user_id, full_name) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name', message.from_user.id, message.from_user.full_name)
     await conn.close()
-    text = (f"👋 Assalomu alaykum {message.from_user.full_name}!\nsizni bu botda korganmzdan xursandmiz...")
+    text = (f"👋 Assalomu alaykum {message.from_user.full_name}!\
+🎮 PUBG va Free Fire roblox o‘yinchilari uchun ajoyib yangilik!
+
+Donat qilish uchun qimmat narxlardan va soatlab kutishlardan charchadingizmi? Unda sizga "Auto UC" yordamga keladi! 🔥
+
+Nega aynan biz?
+⚡️ 100% Avtomat tizim — buyurtmangiz 24/7 rejimda, bir necha soniyada yetib boradi.
+💰 Eng hamyonbop narxlar — cho'ntagingizga mutloq zarar yetkazmaydi.
+🔒 Maksimal xavfsizlik va ishonch — akkountingiz har doim xavfsiz holatda bo'ladi.")
     try: await message.answer_photo(photo=FSInputFile(MENYU_RASM), caption=text, reply_markup=main_menu(message.from_user.id))
     except: await message.answer(text, reply_markup=main_menu(message.from_user.id))
 
