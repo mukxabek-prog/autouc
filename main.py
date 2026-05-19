@@ -11,13 +11,12 @@ from aiogram.fsm.context import FSMContext
 from aiohttp import web
 
 # --- SOZLAMALAR ---
-API_TOKEN = '8014335358:AAECevOsYHvb35TUwJN62akMpSyo9rBVGUc'
+API_TOKEN = '8014335358:AAHGoMN6zU8fCJgGhU1Y625PU3KwyAY2cAI'
 ADMIN_IDS = [8088597011, 1675681600, 6800188051]
 MENYU_RASM = 'menyu_rasm.jpg'
-# SSL MODE qo'shildi (Render/Supabase uchun shart)
 DB_URL = "postgresql://postgres.uhycpopponeusqfaibgx:C%26Q6tfGa%2A-Utr8L@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require"
 
-# --- UYG'OQ SAQLASH (RENDER) ---
+# --- RENDER KEEP-ALIVE ---
 async def handle(request): return web.Response(text="Bot is alive!")
 async def start_web_server():
     app = web.Application()
@@ -49,19 +48,9 @@ FF_PRICES = {
     "ff_2200": {"name": "2200 Diamonds - 245.000 💎", "price": 245000}
 }
 ROBLOX_PRICES = {
-    "rb_40": {"name": "40 ROBUX - 7.000 🪙", "price": 7000}, "rb_80": {"name": "80 ROBUX - 14.000 🪙", "price": 14000},
-    "rb_120": {"name": "120 ROBUX - 21.000 🪙", "price": 21000}, "rb_160": {"name": "160 ROBUX - 28.000 🪙", "price": 28000},
-    "rb_200": {"name": "200 ROBUX - 35.000 🪙", "price": 35000}, "rb_240": {"name": "240 ROBUX - 42.000 🪙", "price": 42000},
-    "rb_280": {"name": "280 ROBUX - 49.000 🪙", "price": 49000}, "rb_320": {"name": "320 ROBUX - 56.000 🪙", "price": 56000},
-    "rb_360": {"name": "360 ROBUX - 63.000 🪙", "price": 63000}, "rb_400": {"name": "400 ROBUX - 65.000 🪙", "price": 65000},
-    "rb_440": {"name": "440 ROBUX - 72.000 🪙", "price": 72000}, "rb_480": {"name": "480 ROBUX - 79.000 🪙", "price": 79000},
-    "rb_520": {"name": "520 ROBUX - 86.000 🪙", "price": 86000}, "rb_560": {"name": "560 ROBUX - 93.000 🪙", "price": 93000},
-    "rb_700": {"name": "700 ROBUX - 100.000 🪙", "price": 100000}, "rb_740": {"name": "740 ROBUX - 107.000 🪙", "price": 107000},
-    "rb_780": {"name": "780 ROBUX - 114.000 🪙", "price": 114000}, "rb_820": {"name": "820 ROBUX - 121.000 🪙", "price": 121000},
-    "rb_860": {"name": "860 ROBUX - 128.000 🪙", "price": 128000}, "rb_1000": {"name": "1000 ROBUX - 132.000 🪙", "price": 132000},
-    "rb_1500": {"name": "1500 ROBUX - 197.000 🪙", "price": 197000}, "rb_2000": {"name": "2000 ROBUX - 265.000 🪙", "price": 265000},
-    "rb_5250": {"name": "5250 ROBUX - 660.000 🪙", "price": 660000}, "rb_11000": {"name": "11000 ROBUX - 1.310.000 🪙", "price": 1310000},
-    "rb_24000": {"name": "24000 ROBUX - 2.620.000 🪙", "price": 2620000}
+    "rb_40": {"name": "40 ROBUX - 7.000 🪙", "price": 7000}, "rb_860": {"name": "860 ROBUX - 128.000 🪙", "price": 128000},
+    "rb_1000": {"name": "1000 ROBUX - 132.000 🪙", "price": 132000}, "rb_5250": {"name": "5250 ROBUX - 660.000 🪙", "price": 660000},
+    "rb_11000": {"name": "11000 ROBUX - 1.310.000 🪙", "price": 1310000}, "rb_24000": {"name": "24000 ROBUX - 2.620.000 🪙", "price": 2620000}
 }
 GENSHIN_PRICES = {
     "gs_60": {"name": "60 G.Crystals - 13.000 ❄️", "price": 13000},
@@ -79,7 +68,7 @@ ML_PRICES = {
     "ml_1783": {"name": "1.783 Diamonds - 375.000 ⚔️", "price": 375000},
     "ml_3006": {"name": "3.006 Diamonds - 635.000 ⚔️", "price": 635000},
     "ml_4770": {"name": "4770 Diamonds - 1.000.000 ⚔️", "price": 1000000},
-    "ml_6012": {"name": "6012 Diamonds - 1.250.000 ⚔️", "price": 1250000},
+    "ml_6012": {"name": "6.012 Diamonds - 1.250.000 ⚔️", "price": 1250000},
     "ml_pass": {"name": "Twilight Pass - 200.000 ⚔️", "price": 200000}
 }
 
@@ -111,17 +100,28 @@ def admin_menu():
     b.button(text="🛠 Promo kiritish"), b.button(text="⬅️ Orqaga")
     b.adjust(2); return b.as_markup(resize_keyboard=True)
 
-# --- START ---
+# --- COMMANDS ---
 @dp.message(Command("start"))
 async def start(m: types.Message, s: FSMContext):
     await s.clear(); conn = await get_db_conn()
     await conn.execute('INSERT INTO users (user_id, full_name) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name', m.from_user.id, m.from_user.full_name)
     await conn.close()
-    txt = f"Assalomu alaykum {m.from_user.full_name}, sizni bu botda korganmzdan xursandmiz siz bu botda\n\nArzon hamyonbob 🤑\nuc xizmat id orqali tushadi ✅\nEng muxumi ishonchli 😎\nUndan tashqar :\nFree Firee uchu ham diamondlar💎\nOlishingiz mumkin 🫵"
+    txt = f"👋 Assalomu alaykum {m.from_user.full_name}, sizni bu botda korganmzdan xursandmiz!..\n\nArzon hamyonbob 🤑\nID orqali tushadi ✅\nIshonchli 😎"
     try: await m.answer_photo(photo=FSInputFile(MENYU_RASM), caption=txt, reply_markup=main_menu(m.from_user.id))
     except: await m.answer(txt, reply_markup=main_menu(m.from_user.id))
 
-# --- HISOB & DEPOSIT ---
+@dp.message(Command("add"))
+async def adm_add(m: types.Message):
+    if m.from_user.id not in ADMIN_IDS: return
+    try:
+        a = m.text.split(); uid, amount = int(a[1]), int(a[2])
+        conn = await get_db_conn(); await conn.execute("UPDATE users SET balance = balance + $1 WHERE user_id = $2", amount, uid); await conn.close()
+        await m.answer(f"✅ Bajarildi! ID {uid} hisobiga {amount} qo'shildi/ayirildi.")
+        msg = f"🎁 Balansingizga {amount} so'm qo'shildi!" if amount > 0 else f"⚠️ Balansingizdan {abs(amount)} so'm ayrildi!"
+        await bot.send_message(uid, msg)
+    except: await m.answer("Xato! `/add [ID] [SUMMA]` (ayirish uchun minus ishlating)")
+
+# --- HISOB & TOPUP ---
 @dp.message(F.text == "💰 Hisob")
 async def profile(m: types.Message, s: FSMContext):
     await s.clear(); conn = await get_db_conn(); bal = await conn.fetchval("SELECT balance FROM users WHERE user_id = $1", m.from_user.id); await conn.close()
@@ -131,40 +131,40 @@ async def profile(m: types.Message, s: FSMContext):
 @dp.callback_query(F.data == "topup_start")
 async def top_s(c, s):
     await s.clear(); b = InlineKeyboardBuilder(); b.button(text="VISA", callback_data="p_v"), b.button(text="HUMO", callback_data="p_h")
-    await c.message.edit_text("To'lov turi:", reply_markup=b.as_markup())
+    await c.message.edit_text("To'lov turini tanlang:", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data.in_(["p_v", "p_h"]))
 async def pay_i(c, s):
     t, k = ("VISA 💳", "4916 9903 4984 9908") if c.data=="p_v" else ("HUMO 💳", "9860 1606 2989 6350")
-    await s.update_data(c_t=t); await c.message.edit_text(f"TOLDIRISH {t}\n\n<code>{k}</code>\nIsmoil Q***yev\n\nQancha tashlaysiz?", parse_mode="HTML")
+    await s.update_data(c_t=t); await c.message.edit_text(f"TOLDIRISH {t}\n\n<code>{k}</code>\nIsmoil Q***yev\n\nQancha tashlaysiz? (Faqat raqam)", parse_mode="HTML")
     await s.set_state(DepositState.waiting_for_amount)
 
 @dp.message(DepositState.waiting_for_amount)
 async def get_am(m, s):
-    if not m.text.isdigit(): return await m.answer("Faqat raqam!")
+    if not m.text.isdigit(): return await m.answer("Raqam yozing!")
     await s.update_data(am=int(m.text)); w = await m.answer("⌛️ Kuting..."); await asyncio.sleep(5)
     b = InlineKeyboardBuilder(); b.button(text="✅ Tashladim", callback_data="i_s"); b.button(text="⬅️ Orqaga", callback_data="topup_start")
-    await w.edit_text(f"Siz {m.text} so'm kiritdingiz.", reply_markup=b.as_markup())
+    await w.edit_text(f"Siz {m.text} so'm kiritdingiz. To'lovni qilgan bo'lsangiz tugmani bosing.", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data == "i_s")
 async def ask_p(c, s):
     await c.message.edit_text("⌛️ Ariza qabul qilinmoqda..."); await asyncio.sleep(6)
-    await c.message.edit_text("📸 Chek rasmini yuboring:"); await s.set_state(DepositState.waiting_for_photo)
+    await c.message.edit_text("📸 To'lov cheki (rasmi)ni yuboring:"); await s.set_state(DepositState.waiting_for_photo)
 
 @dp.message(DepositState.waiting_for_photo, F.photo)
 async def h_check(m, s):
     d = await s.get_data(); b = InlineKeyboardBuilder()
-    b.button(text="✅ Tasdiqlash", callback_data=f"adm_pay_app_{m.from_user.id}_{d['am']}")
-    b.button(text="❌ Rad etish", callback_data=f"adm_pay_rej_{m.from_user.id}")
+    b.button(text="✅ Tasdiqlash", callback_data=f"ap_p_v_{m.from_user.id}_{d['am']}")
+    b.button(text="❌ Rad etish", callback_data=f"ap_p_r_{m.from_user.id}")
     for a in ADMIN_IDS:
         try: await bot.send_photo(a, m.photo[-1].file_id, caption=f"📩 <b>To'lov!</b>\n👤 {m.from_user.full_name}\n🆔 {m.from_user.id}\n💰 {d['am']:,} so'm", parse_mode="HTML", reply_markup=b.as_markup())
         except: continue
     await m.answer("⌛️ Tekshirilmoqda kuting..."); await s.clear()
 
-@dp.callback_query(F.data.startswith("adm_pay_"))
-async def adm_p_dec(c: types.CallbackQuery):
+@dp.callback_query(F.data.startswith("ap_p_"))
+async def adm_topup(c: types.CallbackQuery):
     p = c.data.split("_"); act, uid = p[2], int(p[3])
-    if act == "app":
+    if act == "v":
         am = int(p[4]); conn = await get_db_conn(); await conn.execute("UPDATE users SET balance = balance + $1 WHERE user_id = $2", am, uid); await conn.close()
         await c.message.edit_caption(caption=c.message.caption + "\n\n✅ Tasdiqlandi!", reply_markup=None)
         await bot.send_message(uid, f"🎉 Hisobingiz {am:,} so'mga to'ldirildi!")
@@ -172,7 +172,7 @@ async def adm_p_dec(c: types.CallbackQuery):
         await c.message.edit_caption(caption=c.message.caption + "\n\n❌ Rad etildi!", reply_markup=None)
         await bot.send_message(uid, "❌ To'lov rad etildi! Chek xato yoki soxta.")
 
-# --- O'YINLAR SOTIB OLISH ---
+# --- GAMES SHOP ---
 @dp.message(F.text.in_(["🎮 PUBG Mobile", "🔥 Free Fire", "❄️ Genshin Impact", "⚔️ Mobile Legends"]))
 async def g_shop(m, s):
     await s.clear(); t = m.text
@@ -199,7 +199,7 @@ async def rb_a(c, s):
 async def rb_f(m, s):
     d = await s.get_data(); b = InlineKeyboardBuilder(); b.button(text="✅ Tushdi", callback_data=f"ord_done_{m.from_user.id}_{d['pr']}_RB_none")
     for a in ADMIN_IDS:
-        try: await bot.send_message(a, f"🪙 <b>ROBLOX!</b>\n👤 {m.from_user.full_name}\n🔑 `{m.text}`\n💰 {d['pr']:,} so'm", parse_mode="HTML", reply_markup=b.as_markup())
+        try: await bot.send_message(a, f"🪙 <b>ROBLOX!</b>\n👤 {m.from_user.full_name}\n🆔 {m.from_user.id}\n🔑 `{m.text}`\n💰 {d['pr']:,} so'm", parse_mode="HTML", reply_markup=b.as_markup())
         except: continue
     await m.answer("✅ Buyurtma qabul qilindi! 15 minutda tushadi."); await s.clear()
 
@@ -210,7 +210,7 @@ async def p_buy(c, s):
     if bal and bal >= it['price']:
         await s.update_data(chosen=it['name'], pr=it['price'], key=k)
         await c.message.edit_text(f"✅ {it['name']}\n🔢 ID yuboring:"); await s.set_state(ShopState.waiting_for_id)
-    else: await call.answer("❌ Pul yetarli emas!", show_alert=True)
+    else: await c.answer("❌ Pul yetarli emas!", show_alert=True)
 
 @dp.message(ShopState.waiting_for_id)
 async def get_id(m, s):
@@ -226,7 +226,7 @@ async def fin_b(m, s):
     for a in ADMIN_IDS:
         try: await bot.send_message(a, f"🛒 <b>Buyurtma!</b>\n👤 {m.from_user.full_name}\n🆔 {m.from_user.id}\n📦 {d['chosen']}\n🎮 ID: {d['p_id']}\n👤 Nick: {m.text}{p_txt}", parse_mode="HTML", reply_markup=b.as_markup())
         except: continue
-    msg = "UC" if "uc" in d['key'] else "Diamonds"
+    msg = "UC" if "uc" in d['key'] else ("Diamonds" if "ff" in d['key'] else "G.Crystals")
     await m.answer(f"✅ Buyurtma qabul qilindi! 15 minutda {msg} tushadi."); await s.clear()
 
 @dp.callback_query(F.data.startswith("ord_done_"))
@@ -235,22 +235,21 @@ async def adm_c_o(c: types.CallbackQuery):
     conn = await get_db_conn(); bal = await conn.fetchval("SELECT balance FROM users WHERE user_id = $1", uid)
     if bal and bal >= pr:
         await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", pr, uid)
-        await conn.execute("DELETE FROM promos WHERE package_id = $1", pk); await conn.close()
-        await bot.send_message(uid, "🎉 Buyurtmangiz tushdi ✅"); await c.message.edit_text(c.message.text + "\n\n✅ Bajarildi! (Promo o'chirildi)", reply_markup=None)
+        if pk != "none": await conn.execute("DELETE FROM promos WHERE package_id = $1", pk)
+        await conn.close(); await bot.send_message(uid, "🎉 Buyurtmangiz tushdi ✅"); await c.message.edit_text(c.message.text + "\n\n✅ Bajarildi!", reply_markup=None)
     else: await conn.close(); await c.answer("Balans yetarli emas!", show_alert=True)
 
 # --- ADMIN PANEL ---
 @dp.message(F.text == "🛠 Admin Panel")
-async def adm_p(m, s):
-    if m.from_user.id in ADMIN_IDS: await m.answer("🛠 Admin Panel", reply_markup=admin_menu())
+async def adm_panel(m, s):
+    await s.clear(); if m.from_user.id in ADMIN_IDS: await m.answer("🛠 Admin Panel", reply_markup=admin_menu())
 
 @dp.message(F.text == "👥 Foydalanuvchilar")
 async def adm_u(m):
     if m.from_user.id in ADMIN_IDS:
         conn = await get_db_conn(); rows = await conn.fetch("SELECT user_id, full_name, balance FROM users LIMIT 50"); await conn.close()
-        if not rows: return await m.answer("Baza bo'sh.")
         t = "👥 <b>Foydalanuvchilar:</b>\n\n"
-        for r in rows: t += f"🆔 <code>{r[0]}</code> | 👤 {r[1]} | 💰 {r[2]:,} so'm\n"
+        for r in rows: t += f"🆔 <code>{r['user_id']}</code> | 👤 {r['full_name']} | 💰 {r['balance']:,} so'm\n"
         await m.answer(t, parse_mode="HTML")
 
 @dp.message(F.text == "📊 Statistika")
@@ -266,26 +265,17 @@ async def adm_pr(m, s):
 
 @dp.callback_query(F.data.startswith("sp_"))
 async def adm_s_p(c, s):
-    await s.update_data(pk=c.data.replace("sp_", "")); await c.message.edit_text("Promo kodni yozing:"); await s.set_state(AdminPromoState.waiting_for_promo_code)
+    await s.update_data(pk=c.data.replace("sp_", "")); await c.message.edit_text("Promo kodni yozing:"); await state.set_state(AdminPromoState.waiting_for_promo_code)
 
 @dp.message(AdminPromoState.waiting_for_promo_code)
 async def adm_sv_p(m, s):
-    d = await s.get_data(); conn = await get_db_conn(); await conn.execute('INSERT INTO promos (package_id, promo_code) VALUES ($1, $2) ON CONFLICT (package_id) DO UPDATE SET promo_code = $2', d['pk'], m.text); await conn.close()
+    d = await s.get_state(); conn = await get_db_conn(); await conn.execute('INSERT INTO promos (package_id, promo_code) VALUES ($1, $2) ON CONFLICT (package_id) DO UPDATE SET promo_code = $2', d['pk'], m.text); await conn.close()
     await m.answer("✅ Promo saqlandi!"); await s.clear()
-
-@dp.message(Command("add"))
-async def adm_add(m):
-    if m.from_user.id not in ADMIN_IDS: return
-    try:
-        a = m.text.split(); conn = await get_db_conn(); await conn.execute("UPDATE users SET balance = balance + $1 WHERE user_id = $2", int(a[2]), int(a[1])); await conn.close()
-        await m.answer("✅ Bajarildi!"); await bot.send_message(int(a[1]), f"🎁 Balans: {a[2]} so'm")
-    except: await m.answer("Xato!")
 
 @dp.message(F.text == "ℹ️ Yordam")
 async def help_menu(m, s):
-    b = InlineKeyboardBuilder(); b.button(text="❓ Bot qanday ishlaydi?", callback_data="h_how")
-    b.button(text="⬅️ Orqaga", callback_data="back_main"); b.adjust(1)
-    await m.answer("Yordam bo'limi", reply_markup=b.as_markup())
+    await s.clear(); b = InlineKeyboardBuilder(); b.button(text="❓ Bot qanday ishlaydi?", callback_data="help_how")
+    b.button(text="⬅️ Orqaga", callback_data="back_main"); b.adjust(1); await m.answer("Yordam", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data == "back_main")
 async def b_m(c, s): await s.clear(); await c.message.answer("Bosh menyu", reply_markup=main_menu(c.from_user.id))
