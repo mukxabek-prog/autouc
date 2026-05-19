@@ -11,7 +11,6 @@ from aiogram.fsm.context import FSMContext
 from aiohttp import web
 
 # --- SOZLAMALAR ---
-# Siz bergan eng oxirgi token
 API_TOKEN = '8014335358:AAHGoMN6zU8fCJgGhU1Y625PU3KwyAY2cAI'
 ADMIN_IDS = [8088597011, 1675681600, 6800188051]
 MENYU_RASM = 'menyu_rasm.jpg'
@@ -49,19 +48,9 @@ FF_PRICES = {
     "ff_2200": {"name": "2200 Diamonds - 245.000 💎", "price": 245000}
 }
 ROBLOX_PRICES = {
-    "rb_40": {"name": "40 ROBUX - 7.000 🪙", "price": 7000}, "rb_80": {"name": "80 ROBUX - 14.000 🪙", "price": 14000},
-    "rb_120": {"name": "120 ROBUX - 21.000 🪙", "price": 21000}, "rb_160": {"name": "160 ROBUX - 28.000 🪙", "price": 28000},
-    "rb_200": {"name": "200 ROBUX - 35.000 🪙", "price": 35000}, "rb_240": {"name": "240 ROBUX - 42.000 🪙", "price": 42000},
-    "rb_280": {"name": "280 ROBUX - 49.000 🪙", "price": 49000}, "rb_320": {"name": "320 ROBUX - 56.000 🪙", "price": 56000},
-    "rb_360": {"name": "360 ROBUX - 63.000 🪙", "price": 63000}, "rb_400": {"name": "400 ROBUX - 65.000 🪙", "price": 65000},
-    "rb_440": {"name": "440 ROBUX - 72.000 🪙", "price": 72000}, "rb_480": {"name": "480 ROBUX - 79.000 🪙", "price": 79000},
-    "rb_520": {"name": "520 ROBUX - 86.000 🪙", "price": 86000}, "rb_560": {"name": "560 ROBUX - 93.000 🪙", "price": 93000},
-    "rb_700": {"name": "700 ROBUX - 100.000 🪙", "price": 100000}, "rb_740": {"name": "740 ROBUX - 107.000 🪙", "price": 107000},
-    "rb_780": {"name": "780 ROBUX - 114.000 🪙", "price": 114000}, "rb_820": {"name": "820 ROBUX - 121.000 🪙", "price": 121000},
-    "rb_860": {"name": "860 ROBUX - 128.000 🪙", "price": 128000}, "rb_1000": {"name": "1000 ROBUX - 132.000 🪙", "price": 132000},
-    "rb_1500": {"name": "1500 ROBUX - 197.000 🪙", "price": 197000}, "rb_2000": {"name": "2000 ROBUX - 265.000 🪙", "price": 265000},
-    "rb_5250": {"name": "5250 ROBUX - 660.000 🪙", "price": 660000}, "rb_11000": {"name": "11000 ROBUX - 1.310.000 🪙", "price": 1310000},
-    "rb_24000": {"name": "24000 ROBUX - 2.620.000 🪙", "price": 2620000}
+    "rb_40": {"name": "40 ROBUX - 7.000 🪙", "price": 7000}, "rb_860": {"name": "860 ROBUX - 128.000 🪙", "price": 128000},
+    "rb_1000": {"name": "1000 ROBUX - 132.000 🪙", "price": 132000}, "rb_5250": {"name": "5250 ROBUX - 660.000 🪙", "price": 660000},
+    "rb_11000": {"name": "11000 ROBUX - 1.310.000 🪙", "price": 1310000}, "rb_24000": {"name": "24000 ROBUX - 2.620.000 🪙", "price": 2620000}
 }
 GENSHIN_PRICES = {
     "gs_60": {"name": "60 G.Crystals - 13.000 ❄️", "price": 13000},
@@ -101,8 +90,7 @@ def main_menu(uid):
     b = ReplyKeyboardBuilder()
     b.button(text="🎮 PUBG Mobile"), b.button(text="🔥 Free Fire")
     b.button(text="🪙 Roblox"), b.button(text="❄️ Genshin Impact")
-    b.button(text="⚔️ Mobile Legends"), b.button(text="💰 Hisob")
-    b.button(text="ℹ️ Yordam")
+    b.button(text="⚔️ Mobile Legends"), b.button(text="💰 Hisob"), b.button(text="ℹ️ Yordam")
     if uid in ADMIN_IDS: b.button(text="🛠 Admin Panel")
     b.adjust(2); return b.as_markup(resize_keyboard=True)
 
@@ -112,59 +100,49 @@ def admin_menu():
     b.button(text="🛠 Promo kiritish"), b.button(text="⬅️ Orqaga")
     b.adjust(2); return b.as_markup(resize_keyboard=True)
 
-# --- COMMANDS ---
+# --- CORE HANDLERS ---
 @dp.message(Command("start"))
-async def start(m: types.Message, s: FSMContext):
-    await s.clear(); conn = await get_db_conn()
-    await conn.execute('INSERT INTO users (user_id, full_name) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name', m.from_user.id, m.from_user.full_name)
+async def start_cmd(message: types.Message, state: FSMContext):
+    await state.clear(); conn = await get_db_conn()
+    await conn.execute('INSERT INTO users (user_id, full_name) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name', message.from_user.id, message.from_user.full_name)
     await conn.close()
-    txt = f"👋 Assalomu alaykum {m.from_user.full_name}, sizni bu botda korganmzdan xursandmiz siz bu botda\n\nArzon hamyonbob 🤑\nID orqali tushadi ✅\nIshonchli 😎\n\nUndan tashqar :\nFree Firee uchu ham diamondlar💎\nOlishingiz mumkin 🫵"
-    try: await m.answer_photo(photo=FSInputFile(MENYU_RASM), caption=txt, reply_markup=main_menu(m.from_user.id))
-    except: await m.answer(txt, reply_markup=main_menu(m.from_user.id))
+    txt = f"👋 Assalomu alaykum {message.from_user.full_name}, sizni bu botda korganmzdan xursandmiz!..\n\nArzon hamyonbob 🤑\nID orqali tushadi ✅\nIshonchli 😎"
+    try: await message.answer_photo(photo=FSInputFile(MENYU_RASM), caption=txt, reply_markup=main_menu(message.from_user.id))
+    except: await message.answer(txt, reply_markup=main_menu(message.from_user.id))
 
-@dp.message(Command("add"))
-async def adm_add(m: types.Message):
-    if m.from_user.id not in ADMIN_IDS: return
-    try:
-        a = m.text.split(); uid, amount = int(a[1]), int(a[2])
-        conn = await get_db_conn(); await conn.execute("UPDATE users SET balance = balance + $1 WHERE user_id = $2", amount, uid); await conn.close()
-        await m.answer(f"✅ ID {uid} balansiga {amount} qo'shildi/ayirildi.")
-        msg = f"🎁 Balansingizga {amount} so'm qo'shildi!" if amount > 0 else f"⚠️ Balansingizdan {abs(amount)} so'm ayrildi!"
-        await bot.send_message(uid, msg)
-    except: await m.answer("Xato! `/add [ID] [SUMMA]`")
-
-# --- HISOB & DEPOSIT ---
 @dp.message(F.text == "💰 Hisob")
-async def profile(m: types.Message, s: FSMContext):
-    await s.clear(); conn = await get_db_conn(); bal = await conn.fetchval("SELECT balance FROM users WHERE user_id = $1", m.from_user.id); await conn.close()
+async def profile_handler(message: types.Message, state: FSMContext):
+    await state.clear(); conn = await get_db_conn()
+    bal = await conn.fetchval("SELECT balance FROM users WHERE user_id = $1", message.from_user.id); await conn.close()
     b = InlineKeyboardBuilder(); b.button(text="➕ Hisobni to'ldirish", callback_data="topup_start")
-    await m.answer(f"💰 <b>Mening balansim:</b> {bal or 0:,} so'm".replace(",", "."), parse_mode="HTML", reply_markup=b.as_markup())
+    await message.answer(f"💰 <b>Mening balansim:</b> {bal or 0:,} so'm".replace(",", "."), parse_mode="HTML", reply_markup=b.as_markup())
 
+# --- DEPOSIT LOGIC ---
 @dp.callback_query(F.data == "topup_start")
-async def top_s(c, s):
-    await s.clear(); b = InlineKeyboardBuilder(); b.button(text="VISA", callback_data="p_v"), b.button(text="HUMO", callback_data="p_h")
+async def topup_s(c: types.CallbackQuery, state: FSMContext):
+    await state.clear(); b = InlineKeyboardBuilder(); b.button(text="VISA", callback_data="p_v"), b.button(text="HUMO", callback_data="p_h")
     await c.message.edit_text("To'lov turi:", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data.in_(["p_v", "p_h"]))
-async def pay_i(c, s):
+async def pay_i(c: types.CallbackQuery, state: FSMContext):
     t, k = ("VISA 💳", "4916 9903 4984 9908") if c.data=="p_v" else ("HUMO 💳", "9860 1606 2989 6350")
-    await s.update_data(c_t=t); await c.message.edit_text(f"TOLDIRISH {t}\n\n<code>{k}</code>\nIsmoil Q***yev\n\nQancha tashlaysiz?", parse_mode="HTML")
-    await s.set_state(DepositState.waiting_for_amount)
+    await state.update_data(c_t=t); await c.message.edit_text(f"TOLDIRISH {t}\n\n<code>{k}</code>\nIsmoil Q***yev\n\nQancha tashlaysiz?", parse_mode="HTML")
+    await state.set_state(DepositState.waiting_for_amount)
 
 @dp.message(DepositState.waiting_for_amount)
-async def get_am(m, s):
-    if not m.text.isdigit(): return await m.answer("Raqam yozing!")
+async def get_am(m: types.Message, s: FSMContext):
+    if not m.text or not m.text.isdigit(): return await m.answer("Raqam yozing!")
     await s.update_data(am=int(m.text)); w = await m.answer("⌛️ Kuting..."); await asyncio.sleep(5)
     b = InlineKeyboardBuilder(); b.button(text="✅ Tashladim", callback_data="i_s"); b.button(text="⬅️ Orqaga", callback_data="topup_start")
     await w.edit_text(f"Siz {m.text} so'm kiritdingiz.", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data == "i_s")
-async def ask_p(c, s):
+async def ask_p(c: types.CallbackQuery, state: FSMContext):
     await c.message.edit_text("⌛️ Ariza qabul qilinmoqda..."); await asyncio.sleep(6)
-    await c.message.edit_text("📸 Chek rasmini yuboring:"); await s.set_state(DepositState.waiting_for_photo)
+    await c.message.edit_text("📸 Chek rasmini yuboring:"); await state.set_state(DepositState.waiting_for_photo)
 
 @dp.message(DepositState.waiting_for_photo, F.photo)
-async def h_check(m, s):
+async def h_check(m: types.Message, s: FSMContext):
     d = await s.get_data(); b = InlineKeyboardBuilder()
     b.button(text="✅ Tasdiqlash", callback_data=f"ap_p_v_{m.from_user.id}_{d['am']}")
     b.button(text="❌ Rad etish", callback_data=f"ap_p_r_{m.from_user.id}")
@@ -174,7 +152,7 @@ async def h_check(m, s):
     await m.answer("⌛️ Tekshirilmoqda kuting..."); await s.clear()
 
 @dp.callback_query(F.data.startswith("ap_p_"))
-async def adm_topup(c: types.CallbackQuery):
+async def adm_topup_decision(c: types.CallbackQuery):
     p = c.data.split("_"); act, uid = p[2], int(p[3])
     if act == "v":
         am = int(p[4]); conn = await get_db_conn(); await conn.execute("UPDATE users SET balance = balance + $1 WHERE user_id = $2", am, uid); await conn.close()
@@ -184,31 +162,31 @@ async def adm_topup(c: types.CallbackQuery):
         await c.message.edit_caption(caption=c.message.caption + "\n\n❌ Rad etildi!", reply_markup=None)
         await bot.send_message(uid, "❌ To'lov rad etildi! Chek xato yoki soxta.")
 
-# --- GAMES SHOP ---
+# --- SHOP LOGIC ---
 @dp.message(F.text.in_(["🎮 PUBG Mobile", "🔥 Free Fire", "❄️ Genshin Impact", "⚔️ Mobile Legends"]))
-async def g_shop(m, s):
+async def games_shop_handler(m: types.Message, s: FSMContext):
     await s.clear(); t = m.text
     p_dict = PUBG_PRICES if "PUBG" in t else (FF_PRICES if "Free" in t else (GENSHIN_PRICES if "Genshin" in t else ML_PRICES))
     b = InlineKeyboardBuilder(); [b.button(text=v['name'], callback_data=f"buy_{k}") for k, v in p_dict.items()]; b.adjust(1)
     await m.answer(f"🛒 {t} paketini tanlang:", reply_markup=b.as_markup())
 
 @dp.message(F.text == "🪙 Roblox")
-async def rb_shop(m, s):
+async def roblox_shop_handler(m: types.Message, s: FSMContext):
     await s.clear(); b = InlineKeyboardBuilder(); [b.button(text=v['name'], callback_data=f"buyrb_{k}") for k, v in ROBLOX_PRICES.items()]; b.adjust(2)
     await m.answer("🪙 Roblox paketini tanlang:", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data.startswith("buyrb_"))
-async def rb_c(c, s):
+async def robux_confirm_handler(c: types.CallbackQuery, s: FSMContext):
     it = ROBLOX_PRICES.get(c.data.replace("buyrb_", "")); await s.update_data(chosen=it['name'], pr=it['price'])
-    b = InlineKeyboardBuilder(); b.button(text="✅ Sotib olaman", callback_data="rb_y"); b.button(text="⬅️ Orqaga", callback_data="back_m")
+    b = InlineKeyboardBuilder(); b.button(text="✅ Sotib olaman", callback_data="rb_y"); b.button(text="⬅️ Orqaga", callback_data="back_main_btn")
     await c.message.edit_text(f"❓ {it['name']} sotib olasizmi?", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data == "rb_y")
-async def rb_a(c, s):
+async def robux_ask_creds_handler(c: types.CallbackQuery, s: FSMContext):
     await c.message.edit_text("📝 Nik va parol yozing!\nFormat: `nik: user parol: pass`\n⚠️ 2-tekshiruvni o'chiring!"); await s.set_state(ShopState.waiting_for_creds)
 
 @dp.message(ShopState.waiting_for_creds)
-async def rb_f(m, s):
+async def robux_finish_handler(m: types.Message, s: FSMContext):
     d = await s.get_data(); b = InlineKeyboardBuilder(); b.button(text="✅ Tushdi", callback_data=f"ord_done_{m.from_user.id}_{d['pr']}_RB_none")
     for a in ADMIN_IDS:
         try: await bot.send_message(a, f"🪙 <b>ROBLOX!</b>\n👤 {m.from_user.full_name}\n🆔 {m.from_user.id}\n🔑 `{m.text}`\n💰 {d['pr']:,} so'm", parse_mode="HTML", reply_markup=b.as_markup())
@@ -216,7 +194,7 @@ async def rb_f(m, s):
     await m.answer("✅ Buyurtma qabul qilindi! 15 minutda tushadi."); await s.clear()
 
 @dp.callback_query(F.data.startswith("buy_"))
-async def p_buy(c, s):
+async def general_buy_handler(c: types.CallbackQuery, s: FSMContext):
     k = c.data.replace("buy_", ""); it = {**PUBG_PRICES, **FF_PRICES, **GENSHIN_PRICES, **ML_PRICES}.get(k)
     conn = await get_db_conn(); bal = await conn.fetchval("SELECT balance FROM users WHERE user_id = $1", c.from_user.id); await conn.close()
     if bal and bal >= it['price']:
@@ -225,12 +203,12 @@ async def p_buy(c, s):
     else: await c.answer("❌ Pul yetarli emas!", show_alert=True)
 
 @dp.message(ShopState.waiting_for_id)
-async def get_id(m, s):
-    if not m.text.isdigit(): return await m.answer("Faqat raqam!")
+async def get_player_id_handler(m: types.Message, s: FSMContext):
+    if not m.text or not m.text.isdigit(): return await m.answer("Faqat raqam!")
     await s.update_data(p_id=m.text); await m.answer("👤 Nick yuboring:"); await s.set_state(ShopState.waiting_for_nick)
 
 @dp.message(ShopState.waiting_for_nick)
-async def fin_b(m, s):
+async def finish_order_handler(m: types.Message, s: FSMContext):
     d = await s.get_data(); conn = await get_db_conn(); promo = await conn.fetchval("SELECT promo_code FROM promos WHERE package_id = $1", d['key']); await conn.close()
     p_txt = f"\n🎁 Promo: <code>{promo}</code>" if promo else "\n🎁 Promo: Kiritilmagan"
     b = InlineKeyboardBuilder(); t_c = "PUBG" if "uc" in d['key'] else "GAME"
@@ -238,27 +216,26 @@ async def fin_b(m, s):
     for a in ADMIN_IDS:
         try: await bot.send_message(a, f"🛒 <b>Buyurtma!</b>\n👤 {m.from_user.full_name}\n🆔 {m.from_user.id}\n📦 {d['chosen']}\n🎮 ID: {d['p_id']}\n👤 Nick: {m.text}{p_txt}", parse_mode="HTML", reply_markup=b.as_markup())
         except: continue
-    msg = "UC" if "uc" in d['key'] else ("Diamonds" if "ff" in d['key'] else "G.Crystals")
-    await m.answer(f"✅ Buyurtma qabul qilindi! 15 minutda {msg} tushadi."); await s.clear()
+    await m.answer(f"✅ Buyurtma qabul qilindi! 15 minutda bajariladi."); await s.clear()
 
 @dp.callback_query(F.data.startswith("ord_done_"))
-async def adm_c_o(c: types.CallbackQuery):
+async def admin_order_done_handler(c: types.CallbackQuery):
     p = c.data.split("_"); uid, pr, tp, pk = int(p[2]), int(p[3]), p[4], p[5]
     conn = await get_db_conn(); bal = await conn.fetchval("SELECT balance FROM users WHERE user_id = $1", uid)
     if bal and bal >= pr:
         await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", pr, uid)
         if pk != "none": await conn.execute("DELETE FROM promos WHERE package_id = $1", pk)
         await conn.close(); await bot.send_message(uid, "🎉 Buyurtmangiz tushdi ✅"); await c.message.edit_text(c.message.text + "\n\n✅ Bajarildi!", reply_markup=None)
-    else: await conn.close(); await call.answer("Balans yetarli emas!", show_alert=True)
+    else: await conn.close(); await c.answer("Balans yetarli emas!", show_alert=True)
 
 # --- ADMIN PANEL ---
 @dp.message(F.text == "🛠 Admin Panel")
-async def adm_p_menu(m: types.Message, s: FSMContext):
-    await s.clear()
+async def admin_panel_handler(m: types.Message, s: FSMContext):
+    await s.clear(); 
     if m.from_user.id in ADMIN_IDS: await m.answer("🛠 Admin Panel", reply_markup=admin_menu())
 
 @dp.message(F.text == "👥 Foydalanuvchilar")
-async def adm_users_list(m: types.Message):
+async def admin_users_list_handler(m: types.Message):
     if m.from_user.id in ADMIN_IDS:
         conn = await get_db_conn(); rows = await conn.fetch("SELECT user_id, full_name, balance FROM users LIMIT 50"); await conn.close()
         if not rows: return await m.answer("Baza bo'sh.")
@@ -267,32 +244,43 @@ async def adm_users_list(m: types.Message):
         await m.answer(t, parse_mode="HTML")
 
 @dp.message(F.text == "📊 Statistika")
-async def adm_stats_view(m: types.Message):
+async def admin_stats_handler(m: types.Message):
     if m.from_user.id in ADMIN_IDS:
         conn = await get_db_conn(); c = await conn.fetchval("SELECT COUNT(*) FROM users"); b = await conn.fetchval("SELECT SUM(balance) FROM users"); await conn.close()
         await m.answer(f"📊 Jami: {c} ta foydalanuvchi\n💰 Jami balans: {b or 0:,} so'm")
 
 @dp.message(F.text == "🛠 Promo kiritish")
-async def adm_promo_entry(m, s):
-    await s.clear(); b = InlineKeyboardBuilder(); [b.button(text=v['name'], callback_data=f"sp_{k}") for k, v in PUBG_PRICES.items()]; b.adjust(1)
-    await m.answer("Promo paketini tanlang:", reply_markup=b.as_markup())
+async def admin_promo_menu_handler(m: types.Message, s: FSMContext):
+    await s.clear()
+    if m.from_user.id in ADMIN_IDS:
+        b = InlineKeyboardBuilder(); [b.button(text=v['name'], callback_data=f"sp_{k}") for k, v in PUBG_PRICES.items()]; b.adjust(1)
+        await m.answer("Promo paketini tanlang:", reply_markup=b.as_markup())
 
 @dp.callback_query(F.data.startswith("sp_"))
-async def adm_ask_promo_val(c: types.CallbackQuery, s: FSMContext):
+async def admin_ask_promo_handler(c: types.CallbackQuery, s: FSMContext):
     await s.update_data(pk=c.data.replace("sp_", "")); await c.message.edit_text("Promo kodni yozing:"); await s.set_state(AdminPromoState.waiting_for_promo_code)
 
 @dp.message(AdminPromoState.waiting_for_promo_code)
-async def adm_save_promo_val(m, s):
+async def admin_save_promo_handler(m: types.Message, s: FSMContext):
     d = await s.get_data(); conn = await get_db_conn(); await conn.execute('INSERT INTO promos (package_id, promo_code) VALUES ($1, $2) ON CONFLICT (package_id) DO UPDATE SET promo_code = $2', d['pk'], m.text); await conn.close()
     await m.answer("✅ Promo saqlandi!"); await s.clear()
 
+@dp.message(Command("add"))
+async def admin_add_balance_handler(m: types.Message):
+    if m.from_user.id not in ADMIN_IDS: return
+    try:
+        a = m.text.split(); conn = await get_db_conn(); await conn.execute("UPDATE users SET balance = balance + $1 WHERE user_id = $2", int(a[2]), int(a[1])); await conn.close()
+        await m.answer("✅ Bajarildi!"); await bot.send_message(int(a[1]), f"🎁 Balans: {a[2]} so'm")
+    except: await m.answer("Xato! /add ID SUMMA")
+
 @dp.message(F.text == "⬅️ Orqaga")
-@dp.callback_query(F.data == "back_main")
-async def back_to_main(event, s):
-    await s.clear(); uid = event.from_user.id
+@dp.callback_query(F.data == "back_main_btn")
+async def back_to_main_handler(event, state: FSMContext):
+    await state.clear(); uid = event.from_user.id
     if isinstance(event, types.Message): await event.answer("Bosh menyu", reply_markup=main_menu(uid))
     else: await event.message.answer("Bosh menyu", reply_markup=main_menu(uid))
 
+# --- MAIN ---
 async def main():
     await init_db(); await start_web_server()
     print("🚀 Bot tayyor!"); await dp.start_polling(bot)
