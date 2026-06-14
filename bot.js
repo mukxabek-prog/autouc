@@ -822,3 +822,10 @@ server.listen(PORT, () => {
 
 console.log('🚀 PUBG UC Bot ishga tushdi!');
 console.log(`👥 Adminlar: ${ADMIN_IDS.join(', ')}`);
+
+const express = require('express');
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.get('/', (req, res) => res.send('Bot is running!'));
+app.listen(port, () => console.log(`Server is listening on port ${port}`));
