@@ -1,14 +1,12 @@
 {
   "name": "pubg-uc-bot",
   "version": "1.0.0",
-  "description": "PUBG UC va Popularity sotish boti",
-  "main": "src/bot.js",
+  "main": "bot.js",
   "scripts": {
-    "start": "node src/bot.js"
+    "start": "node bot.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.66.0",
-    "dotenv": "^16.4.5",
-    "lowdb": "^1.0.0"
+    "dotenv": "^16.4.5"
   }
 }
