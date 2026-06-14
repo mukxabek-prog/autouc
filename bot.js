@@ -15,7 +15,7 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
-const bot = new TelegramBot(BOT_TOKEN); // { polling: true } qismini olib tashlang
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 // Foydalanuvchi holati (sessiya)
 const userStates = {};
