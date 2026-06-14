@@ -805,5 +805,20 @@ process.on('unhandledRejection', (err) => {
   console.error('Unhandled rejection:', err);
 });
 
+// ========================
+// HTTP SERVER (Render Free uchun)
+// ========================
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('PUBG UC Bot ishlayapti! 🎮');
+});
+
+server.listen(PORT, () => {
+  console.log(`🌐 HTTP server port ${PORT} da ishga tushdi`);
+});
+
 console.log('🚀 PUBG UC Bot ishga tushdi!');
 console.log(`👥 Adminlar: ${ADMIN_IDS.join(', ')}`);
