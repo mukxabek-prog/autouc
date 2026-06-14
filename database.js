@@ -1,188 +1,189 @@
-const Database = require('better-sqlite3');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'bot.db');
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 // data papkasini yaratish
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const db = new Database(DB_PATH);
+// Default ma'lumotlar
+const DEFAULT_DB = {
+  users: {},
+  orders: [],
+  topup_requests: [],
+  transactions: [],
+  next_order_id: 1,
+  next_topup_id: 1,
+  products: {
+    uc: [
+      { id: 1, type: 'uc', name: '60 UC', amount: 60, price: 15000 },
+      { id: 2, type: 'uc', name: '325 UC', amount: 325, price: 65000 },
+      { id: 3, type: 'uc', name: '660 UC', amount: 660, price: 125000 },
+      { id: 4, type: 'uc', name: '1800 UC', amount: 1800, price: 320000 },
+      { id: 5, type: 'uc', name: '3850 UC', amount: 3850, price: 640000 },
+      { id: 6, type: 'uc', name: '8100 UC', amount: 8100, price: 1275000 }
+    ],
+    popularity: [
+      { id: 7, type: 'popularity', name: '100 Popularity', amount: 100, price: 25000 },
+      { id: 8, type: 'popularity', name: '300 Popularity', amount: 300, price: 70000 },
+      { id: 9, type: 'popularity', name: '600 Popularity', amount: 600, price: 130000 },
+      { id: 10, type: 'popularity', name: '1500 Popularity', amount: 1500, price: 300000 }
+    ]
+  }
+};
 
-// Jadvallarni yaratish
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY,
-    telegram_id INTEGER UNIQUE NOT NULL,
-    username TEXT,
-    full_name TEXT,
-    balance INTEGER DEFAULT 0,
-    total_spent INTEGER DEFAULT 0,
-    joined_at TEXT DEFAULT (datetime('now')),
-    is_banned INTEGER DEFAULT 0
-  );
+// DB ni yuklash
+function loadDB() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch (e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_DB));
+}
 
-  CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    telegram_id INTEGER NOT NULL,
-    product_type TEXT NOT NULL,
-    product_name TEXT NOT NULL,
-    amount INTEGER NOT NULL,
-    price INTEGER NOT NULL,
-    pubg_id TEXT,
-    pubg_nick TEXT,
-    status TEXT DEFAULT 'pending',
-    created_at TEXT DEFAULT (datetime('now')),
-    completed_at TEXT,
-    admin_note TEXT,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS topup_requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id INTEGER NOT NULL,
-    amount INTEGER NOT NULL,
-    status TEXT DEFAULT 'pending',
-    receipt_file_id TEXT,
-    receipt_type TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    reviewed_at TEXT,
-    reviewed_by INTEGER,
-    reject_reason TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id INTEGER NOT NULL,
-    type TEXT NOT NULL,
-    amount INTEGER NOT NULL,
-    description TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL,
-    name TEXT NOT NULL,
-    amount INTEGER NOT NULL,
-    price INTEGER NOT NULL,
-    is_active INTEGER DEFAULT 1,
-    sort_order INTEGER DEFAULT 0
-  );
-`);
-
-// Default mahsulotlarni qo'shish (agar bo'sh bo'lsa)
-const productCount = db.prepare('SELECT COUNT(*) as cnt FROM products').get();
-if (productCount.cnt === 0) {
-  const insertProduct = db.prepare(
-    'INSERT INTO products (type, name, amount, price, sort_order) VALUES (?, ?, ?, ?, ?)'
-  );
-
-  // UC mahsulotlari
-  insertProduct.run('uc', '60 UC', 60, 15000, 1);
-  insertProduct.run('uc', '325 UC', 325, 65000, 2);
-  insertProduct.run('uc', '660 UC', 660, 125000, 3);
-  insertProduct.run('uc', '1800 UC', 1800, 320000, 4);
-  insertProduct.run('uc', '3850 UC', 3850, 640000, 5);
-  insertProduct.run('uc', '8100 UC', 8100, 1275000, 6);
-
-  // Popularity mahsulotlari
-  insertProduct.run('popularity', '100 Popularity', 100, 25000, 1);
-  insertProduct.run('popularity', '300 Popularity', 300, 70000, 2);
-  insertProduct.run('popularity', '600 Popularity', 600, 130000, 3);
-  insertProduct.run('popularity', '1500 Popularity', 1500, 300000, 4);
+// DB ni saqlash
+function saveDB(data) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('DB saqlashda xato:', e.message);
+  }
 }
 
 // ========================
 // USERS
 // ========================
 function getOrCreateUser(telegramId, username, fullName) {
-  let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
-  if (!user) {
-    db.prepare(
-      'INSERT OR IGNORE INTO users (telegram_id, username, full_name) VALUES (?, ?, ?)'
-    ).run(telegramId, username || null, fullName || null);
-    user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+  const db = loadDB();
+  const id = String(telegramId);
+  if (!db.users[id]) {
+    db.users[id] = {
+      telegram_id: telegramId,
+      username: username || null,
+      full_name: fullName || null,
+      balance: 0,
+      total_spent: 0,
+      joined_at: new Date().toISOString(),
+      is_banned: false
+    };
   } else {
-    db.prepare('UPDATE users SET username = ?, full_name = ? WHERE telegram_id = ?')
-      .run(username || null, fullName || null, telegramId);
+    db.users[id].username = username || db.users[id].username;
+    db.users[id].full_name = fullName || db.users[id].full_name;
   }
-  return user;
+  saveDB(db);
+  return db.users[id];
 }
 
 function getUserByTelegramId(telegramId) {
-  return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+  const db = loadDB();
+  return db.users[String(telegramId)] || null;
 }
 
 function getUserBalance(telegramId) {
-  const user = db.prepare('SELECT balance FROM users WHERE telegram_id = ?').get(telegramId);
+  const user = getUserByTelegramId(telegramId);
   return user ? user.balance : 0;
 }
 
-function addBalance(telegramId, amount, description = 'Hisob to\'ldirish') {
-  db.prepare('UPDATE users SET balance = balance + ? WHERE telegram_id = ?').run(amount, telegramId);
-  db.prepare(
-    'INSERT INTO transactions (telegram_id, type, amount, description) VALUES (?, ?, ?, ?)'
-  ).run(telegramId, 'topup', amount, description);
+function addBalance(telegramId, amount, description = "Hisob to'ldirish") {
+  const db = loadDB();
+  const id = String(telegramId);
+  if (!db.users[id]) return;
+  db.users[id].balance += amount;
+  db.transactions.push({
+    telegram_id: telegramId,
+    type: 'topup',
+    amount: amount,
+    description,
+    created_at: new Date().toISOString()
+  });
+  saveDB(db);
 }
 
 function deductBalance(telegramId, amount, description = 'Xarid') {
-  const user = getUserByTelegramId(telegramId);
-  if (!user || user.balance < amount) return false;
-  db.prepare('UPDATE users SET balance = balance - ?, total_spent = total_spent + ? WHERE telegram_id = ?')
-    .run(amount, amount, telegramId);
-  db.prepare(
-    'INSERT INTO transactions (telegram_id, type, amount, description) VALUES (?, ?, ?, ?)'
-  ).run(telegramId, 'purchase', -amount, description);
+  const db = loadDB();
+  const id = String(telegramId);
+  if (!db.users[id] || db.users[id].balance < amount) return false;
+  db.users[id].balance -= amount;
+  db.users[id].total_spent += amount;
+  db.transactions.push({
+    telegram_id: telegramId,
+    type: 'purchase',
+    amount: -amount,
+    description,
+    created_at: new Date().toISOString()
+  });
+  saveDB(db);
   return true;
 }
 
 function getAllUsers() {
-  return db.prepare('SELECT * FROM users ORDER BY joined_at DESC').all();
+  const db = loadDB();
+  return Object.values(db.users);
 }
 
 function getUserCount() {
-  return db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
+  const db = loadDB();
+  return Object.keys(db.users).length;
 }
 
 // ========================
 // TOPUP REQUESTS
 // ========================
 function createTopupRequest(telegramId, amount, receiptFileId, receiptType) {
-  const result = db.prepare(
-    'INSERT INTO topup_requests (telegram_id, amount, receipt_file_id, receipt_type) VALUES (?, ?, ?, ?)'
-  ).run(telegramId, amount, receiptFileId, receiptType);
-  return result.lastInsertRowid;
+  const db = loadDB();
+  const id = db.next_topup_id++;
+  db.topup_requests.push({
+    id,
+    telegram_id: telegramId,
+    amount,
+    receipt_file_id: receiptFileId,
+    receipt_type: receiptType,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    reviewed_at: null,
+    reviewed_by: null,
+    reject_reason: null
+  });
+  saveDB(db);
+  return id;
 }
 
 function getTopupRequest(id) {
-  return db.prepare('SELECT * FROM topup_requests WHERE id = ?').get(id);
+  const db = loadDB();
+  return db.topup_requests.find(r => r.id === parseInt(id)) || null;
 }
 
 function getPendingTopupRequests() {
-  return db.prepare("SELECT * FROM topup_requests WHERE status = 'pending' ORDER BY created_at").all();
+  const db = loadDB();
+  return db.topup_requests.filter(r => r.status === 'pending');
 }
 
 function approveTopupRequest(id, adminId) {
-  const req = getTopupRequest(id);
+  const db = loadDB();
+  const req = db.topup_requests.find(r => r.id === parseInt(id));
   if (!req || req.status !== 'pending') return false;
-  db.prepare(
-    "UPDATE topup_requests SET status = 'approved', reviewed_at = datetime('now'), reviewed_by = ? WHERE id = ?"
-  ).run(adminId, id);
+  req.status = 'approved';
+  req.reviewed_at = new Date().toISOString();
+  req.reviewed_by = adminId;
+  saveDB(db);
   addBalance(req.telegram_id, req.amount, `To'ldirish #${id} tasdiqlandi`);
   return req;
 }
 
 function rejectTopupRequest(id, adminId, reason) {
-  const req = getTopupRequest(id);
+  const db = loadDB();
+  const req = db.topup_requests.find(r => r.id === parseInt(id));
   if (!req || req.status !== 'pending') return false;
-  db.prepare(
-    "UPDATE topup_requests SET status = 'rejected', reviewed_at = datetime('now'), reviewed_by = ?, reject_reason = ? WHERE id = ?"
-  ).run(adminId, reason || null, id);
+  req.status = 'rejected';
+  req.reviewed_at = new Date().toISOString();
+  req.reviewed_by = adminId;
+  req.reject_reason = reason || null;
+  saveDB(db);
   return req;
 }
 
@@ -190,73 +191,106 @@ function rejectTopupRequest(id, adminId, reason) {
 // ORDERS
 // ========================
 function createOrder(telegramId, productType, productName, amount, price, pubgId, pubgNick) {
-  const user = getUserByTelegramId(telegramId);
-  if (!user) return null;
-  const result = db.prepare(
-    `INSERT INTO orders (user_id, telegram_id, product_type, product_name, amount, price, pubg_id, pubg_nick)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(user.id, telegramId, productType, productName, amount, price, pubgId, pubgNick);
-  return result.lastInsertRowid;
+  const db = loadDB();
+  const id = db.next_order_id++;
+  db.orders.push({
+    id,
+    telegram_id: telegramId,
+    product_type: productType,
+    product_name: productName,
+    amount,
+    price,
+    pubg_id: pubgId,
+    pubg_nick: pubgNick,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    completed_at: null,
+    admin_note: null
+  });
+  saveDB(db);
+  return id;
 }
 
 function getOrder(id) {
-  return db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  const db = loadDB();
+  return db.orders.find(o => o.id === parseInt(id)) || null;
 }
 
 function getUserOrders(telegramId, limit = 10) {
-  return db.prepare(
-    'SELECT * FROM orders WHERE telegram_id = ? ORDER BY created_at DESC LIMIT ?'
-  ).all(telegramId, limit);
+  const db = loadDB();
+  return db.orders
+    .filter(o => o.telegram_id === telegramId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, limit);
 }
 
 function getAllOrders(limit = 50) {
-  return db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ?').all(limit);
+  const db = loadDB();
+  return db.orders
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, limit);
 }
 
 function completeOrder(id) {
-  db.prepare("UPDATE orders SET status = 'completed', completed_at = datetime('now') WHERE id = ?").run(id);
+  const db = loadDB();
+  const order = db.orders.find(o => o.id === parseInt(id));
+  if (order) {
+    order.status = 'completed';
+    order.completed_at = new Date().toISOString();
+    saveDB(db);
+  }
 }
 
 function cancelOrder(id, note) {
-  db.prepare("UPDATE orders SET status = 'cancelled', admin_note = ? WHERE id = ?").run(note || null, id);
+  const db = loadDB();
+  const order = db.orders.find(o => o.id === parseInt(id));
+  if (order) {
+    order.status = 'cancelled';
+    order.admin_note = note || null;
+    saveDB(db);
+  }
 }
 
 // ========================
 // PRODUCTS
 // ========================
 function getProducts(type) {
-  return db.prepare(
-    'SELECT * FROM products WHERE type = ? AND is_active = 1 ORDER BY sort_order, price'
-  ).all(type);
+  const db = loadDB();
+  return db.products[type] || [];
 }
 
 function getProductById(id) {
-  return db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+  const db = loadDB();
+  const all = [...(db.products.uc || []), ...(db.products.popularity || [])];
+  return all.find(p => p.id === parseInt(id)) || null;
 }
 
 // ========================
 // TRANSACTIONS
 // ========================
 function getUserTransactions(telegramId, limit = 10) {
-  return db.prepare(
-    'SELECT * FROM transactions WHERE telegram_id = ? ORDER BY created_at DESC LIMIT ?'
-  ).all(telegramId, limit);
+  const db = loadDB();
+  return db.transactions
+    .filter(t => t.telegram_id === telegramId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, limit);
 }
 
 // ========================
 // STATS
 // ========================
 function getStats() {
-  const totalUsers = db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
-  const totalOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE status = 'completed'").get().cnt;
-  const totalRevenue = db.prepare("SELECT COALESCE(SUM(price), 0) as total FROM orders WHERE status = 'completed'").get().total;
-  const pendingTopups = db.prepare("SELECT COUNT(*) as cnt FROM topup_requests WHERE status = 'pending'").get().cnt;
-  const pendingOrders = db.prepare("SELECT COUNT(*) as cnt FROM orders WHERE status = 'pending'").get().cnt;
+  const db = loadDB();
+  const totalUsers = Object.keys(db.users).length;
+  const completedOrders = db.orders.filter(o => o.status === 'completed');
+  const totalOrders = completedOrders.length;
+  const totalRevenue = completedOrders.reduce((sum, o) => sum + o.price, 0);
+  const pendingTopups = db.topup_requests.filter(r => r.status === 'pending').length;
+  const pendingOrders = db.orders.filter(o => o.status === 'pending').length;
   return { totalUsers, totalOrders, totalRevenue, pendingTopups, pendingOrders };
 }
 
 module.exports = {
-  db,
   getOrCreateUser,
   getUserByTelegramId,
   getUserBalance,
