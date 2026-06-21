@@ -284,7 +284,8 @@ async function sendPayment(chatId, msgId, amount, edit) {
 // ========================
 // START
 // ========================
-bot.onText(/\/start/, async (msg) => {
+bot.on('message', async (msg) => {
+  if (msg.text === '/start') {
   const { id: chatId, from } = msg;
   clearState(from.id);
   getOrCreateUser(from.id, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
