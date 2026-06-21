@@ -10,6 +10,8 @@ const http = require('http');
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(Boolean);
 const PORT = process.env.PORT || 3000;
+// Majburiy obuna kanali, masalan: @mychannel (Bot shu kanalda ADMIN bo'lishi shart!)
+const FORCE_SUB_CHANNEL = (process.env.FORCE_SUB_CHANNEL || '').trim();
 
 if (!BOT_TOKEN) { console.error('❌ BOT_TOKEN topilmadi!'); process.exit(1); }
 
@@ -220,6 +222,37 @@ function setState(id, s) { userStates[id] = { ...getState(id), ...s }; }
 function clearState(id) { delete userStates[id]; }
 
 // ========================
+// MAJBURIY OBUNA
+// ========================
+async function isUserSubscribed(uid) {
+  if (!FORCE_SUB_CHANNEL) return true; // kanal sozlanmagan bo'lsa — tekshirilmaydi
+  try {
+    const member = await bot.getChatMember(FORCE_SUB_CHANNEL, uid);
+    return !['left', 'kicked'].includes(member.status);
+  } catch (e) {
+    console.error('Obuna tekshiruvi xato:', e.message);
+    // Bot kanalda admin bo'lmasa yoki kanal topilmasa — xavfsizlik uchun ruxsat bermaymiz
+    return false;
+  }
+}
+
+function forceSubKeyboard() {
+  const username = FORCE_SUB_CHANNEL.replace('@', '');
+  return { inline_keyboard: [
+    [{ text: '📢 Kanalga obuna bo\'lish', url: `https://t.me/${username}` }],
+    [{ text: '✅ Obunani tekshirish', callback_data: 'check_sub' }]
+  ]};
+}
+
+async function sendForceSubMessage(chatId) {
+  await bot.sendMessage(chatId,
+    `🚫 <b>Botdan foydalanish uchun avval kanalga obuna bo\'ling!</b>\n\n` +
+    `${FORCE_SUB_CHANNEL} kanaliga obuna bo\'ling, so\'ng <b>"✅ Obunani tekshirish"</b> tugmasini bosing.`,
+    { parse_mode: 'HTML', reply_markup: forceSubKeyboard() }
+  );
+}
+
+// ========================
 // KEYBOARDS
 // ========================
 function mainMenu() {
@@ -314,9 +347,7 @@ async function sendPayment(chatId, msgId, amount, edit) {
 // ========================
 // START
 // ========================
-bot.onText(/\/start/, async (msg) => {
-  const { id: chatId, from } = msg;
-  clearState(from.id);
+async function sendStartMenu(chatId, from) {
   getOrCreateUser(from.id, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
   await bot.sendMessage(chatId,
     `👋 Salom, <b>${from.first_name}</b>!\n\n` +
@@ -331,6 +362,14 @@ bot.onText(/\/start/, async (msg) => {
     `👇 Pastdagi menyudan tanlang:`,
     { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }
   );
+}
+
+bot.onText(/\/start/, async (msg) => {
+  const { id: chatId, from } = msg;
+  clearState(from.id);
+  const subscribed = await isUserSubscribed(from.id);
+  if (!subscribed) return sendForceSubMessage(chatId);
+  await sendStartMenu(chatId, from);
 });
 
 bot.onText(/\/admin/, async (msg) => {
@@ -346,11 +385,23 @@ bot.on('callback_query', async (query) => {
   const uid = from.id;
   const chatId = message.chat.id;
   const msgId = message.message_id;
-  await bot.answerCallbackQuery(query.id);
+  if (data !== 'check_sub') await bot.answerCallbackQuery(query.id);
 
   try {
+    // MAJBURIY OBUNA TEKSHIRISH
+    if (data === 'check_sub') {
+      const subscribed = await isUserSubscribed(uid);
+      if (subscribed) {
+        await bot.answerCallbackQuery(query.id, { text: '✅ Obuna tasdiqlandi!' });
+        try { await bot.deleteMessage(chatId, msgId); } catch {}
+        await sendStartMenu(chatId, from);
+      } else {
+        await bot.answerCallbackQuery(query.id, { text: '❌ Siz hali obuna bo\'lmagansiz!', show_alert: true });
+      }
+    }
+
     // MAIN MENU
-    if (data === 'main_menu') {
+    else if (data === 'main_menu') {
       clearState(uid);
       const bal = getBalance(uid);
       await bot.editMessageText(
