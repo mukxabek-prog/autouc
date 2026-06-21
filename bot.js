@@ -222,6 +222,22 @@ function clearState(id) { delete userStates[id]; }
 // ========================
 // KEYBOARDS
 // ========================
+
+// Pastki doimiy menyu (ReplyKeyboard)
+function replyMenu() {
+  return {
+    keyboard: [
+      ['🎮 PUBG — UC', '⭐ PUBG — Popularity'],
+      ['🔥 Free Fire — Diamond', '⚔️ CoC — Gems'],
+      ['🌟 Mobile Legends', '🟥 Roblox — Robux'],
+      ['💰 Hisobni to\'ldirish', '👤 Mening hisobim'],
+      ['📋 Buyurtmalarim', '📞 Yordam']
+    ],
+    resize_keyboard: true,
+    persistent: true
+  };
+}
+
 function mainMenu() {
   return { inline_keyboard: [
     [{ text: '🎮 PUBG — UC', callback_data: 'buy_uc' }, { text: '⭐ PUBG — Popularity', callback_data: 'buy_popularity' }],
@@ -288,16 +304,24 @@ bot.onText(/\/start/, async (msg) => {
   const { id: chatId, from } = msg;
   clearState(from.id);
   getOrCreateUser(from.id, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
+  const bal = getBalance(from.id);
+  // Avval ReplyKeyboard chiqarish
   await bot.sendMessage(chatId,
-    `👋 Salom, <b>${from.first_name}</b>!\n\n` +
-    `🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n` +
+    `👋 Salom, <b>${from.first_name}</b>! Xush kelibsiz! 🎮`,
+    { parse_mode: 'HTML', reply_markup: replyMenu() }
+  );
+  // Keyin inline menyu
+  await bot.sendMessage(chatId,
+    `🏪 <b>Game Shop</b>\n\n` +
+    `💰 Balansingiz: <b>${fmt(bal)}</b>\n\n` +
     `🎮 PUBG Mobile — UC & Popularity\n` +
     `🔥 Free Fire — Diamond\n` +
     `⚔️ Clash of Clans — Gems\n` +
     `🌟 Mobile Legends — Diamond\n` +
     `🟥 Roblox — Robux\n\n` +
     `💳 To\'lov admin orqali tasdiqlanadi.\n` +
-    `⚡ Tez va ishonchli yetkazib berish!`,
+    `⚡ Tez va ishonchli yetkazib berish!\n\n` +
+    `👇 O\'yin tanlang:`,
     { parse_mode: 'HTML', reply_markup: mainMenu() }
   );
 });
@@ -692,13 +716,69 @@ bot.on('message', async (msg) => {
       await bot.sendMessage(chatId, `✅ Tugadi! Yuborildi: ${sent} | Xato: ${failed}`);
     }
 
-    // NOMA'LUM
+    // REPLY KEYBOARD TUGMALARI
     else if (text && !state.step) {
       const bal = getBalance(uid);
-      await bot.sendMessage(chatId,
-        `🎮 <b>Game Shop</b>\n\n💰 Balansingiz: <b>${fmt(bal)}</b>\n\nO\'yin tanlang:`,
-        { parse_mode: 'HTML', reply_markup: mainMenu() }
-      );
+      const replyMap = {
+        '🎮 PUBG — UC':            'buy_uc',
+        '⭐ PUBG — Popularity':    'buy_popularity',
+        '🔥 Free Fire — Diamond':  'buy_diamond',
+        '⚔️ CoC — Gems':          'buy_gems',
+        '🌟 Mobile Legends':       'buy_mlbb',
+        '🟥 Roblox — Robux':      'buy_robux',
+        '💰 Hisobni to\'ldirish':  'topup_menu',
+        '👤 Mening hisobim':       'my_account',
+        '📋 Buyurtmalarim':        'my_orders',
+        '📞 Yordam':               'support',
+      };
+
+      if (replyMap[text]) {
+        const action = replyMap[text];
+        const g = action.startsWith('buy_') ? gameInfo(action.replace('buy_', '')) : null;
+
+        if (action.startsWith('buy_')) {
+          const type = action.replace('buy_', '');
+          const products = getProducts(type);
+          await bot.sendMessage(chatId,
+            `${g.emoji} <b>${g.name} — ${g.currency}</b>\n\nPaket tanlang:`,
+            { parse_mode: 'HTML', reply_markup: productsMenu(products) }
+          );
+        } else if (action === 'topup_menu') {
+          await bot.sendMessage(chatId,
+            `💰 <b>Hisobni to\'ldirish</b>\n\n📌 To\'lov usuli: Admin orqali\n📸 Chek yuboring → Admin tasdiqlaydi → Balans qo\'shiladi`,
+            { parse_mode: 'HTML', reply_markup: topupMenu() }
+          );
+        } else if (action === 'my_account') {
+          const user = getUser(uid);
+          if (!user) return;
+          const txs = getLastTransactions(uid);
+          let txText = txs.length ? '\n\n📋 <b>So\'nggi operatsiyalar:</b>\n' + txs.map(t => `${t.amount > 0 ? '+' : ''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n') : '';
+          await bot.sendMessage(chatId,
+            `👤 <b>Mening hisobim</b>\n\n🆔 ID: <code>${uid}</code>\n👤 Ism: <b>${user.full_name || 'Noma\'lum'}</b>\n💰 Balans: <b>${fmt(user.balance)}</b>\n💸 Jami sarflangan: <b>${fmt(user.total_spent)}</b>` + txText,
+            { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '💰 To\'ldirish', callback_data: 'topup_menu' }], [{ text: '🏠 Menyu', callback_data: 'main_menu' }]] } }
+          );
+        } else if (action === 'my_orders') {
+          const orders = getUserOrders(uid);
+          if (!orders.length) return bot.sendMessage(chatId, '📋 Hali buyurtmalar yo\'q.', { parse_mode: 'HTML', reply_markup: mainMenu() });
+          let txt = `📋 <b>Buyurtmalarim</b>\n\n`;
+          orders.forEach((o, i) => {
+            const s = o.status === 'completed' ? '✅' : o.status === 'pending' ? '⏳' : '❌';
+            const gi = gameInfo(o.product_type);
+            txt += `${i+1}. #${o.id} ${s} ${gi.emoji} <b>${o.product_name}</b> — ${fmt(o.price)}\n`;
+          });
+          await bot.sendMessage(chatId, txt, { parse_mode: 'HTML', reply_markup: mainMenu() });
+        } else if (action === 'support') {
+          await bot.sendMessage(chatId,
+            `📞 <b>Yordam</b>\n\n👨‍💼 Admin: @admin_username\n⏰ Ish vaqti: 09:00 - 22:00\n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,
+            { parse_mode: 'HTML', reply_markup: mainMenu() }
+          );
+        }
+      } else {
+        await bot.sendMessage(chatId,
+          `🎮 <b>Game Shop</b>\n\n💰 Balansingiz: <b>${fmt(bal)}</b>\n\nO\'yin tanlang:`,
+          { parse_mode: 'HTML', reply_markup: mainMenu() }
+        );
+      }
     }
 
   } catch (err) {
