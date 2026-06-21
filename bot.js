@@ -575,7 +575,7 @@ bot.on('message', async (msg) => {
   const uid = from.id;
   const chatId = chat.id;
   const state = getState(uid);
-  if (text && text.startsWith('/')) return;
+  if (text && text.startsWith('/') && text !== '/start') return;
 
   try {
     // GAME ID
