@@ -5,6 +5,7 @@
   "scripts": { "start": "node bot.js" },
   "dependencies": {
     "node-telegram-bot-api": "^0.66.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "@google/generative-ai": "^0.21.0"
   }
 }
