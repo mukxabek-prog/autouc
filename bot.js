@@ -1,8 +1,7 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const fs = require('fs');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 const http = require('http');
 
 // ========================
@@ -11,9 +10,11 @@ const http = require('http');
 const BOT_TOKEN   = process.env.BOT_TOKEN;
 const ADMIN_IDS   = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(Boolean);
 const GEMINI_KEY  = process.env.GEMINI_API_KEY;
+const MONGO_URI   = process.env.MONGODB_URI;
 const PORT        = process.env.PORT || 3000;
 
-if (!BOT_TOKEN) { console.error('❌ BOT_TOKEN topilmadi!'); process.exit(1); }
+if (!BOT_TOKEN)  { console.error('❌ BOT_TOKEN topilmadi!');   process.exit(1); }
+if (!MONGO_URI)  { console.error('❌ MONGODB_URI topilmadi!'); process.exit(1); }
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const userStates = {};
@@ -27,182 +28,235 @@ if (GEMINI_KEY) {
 }
 
 // ========================
-// DATABASE (JSON)
+// MONGODB
 // ========================
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_FILE  = path.join(DATA_DIR, 'db.json');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const client = new MongoClient(MONGO_URI);
+let db;
 
-const DEFAULT_DB = {
-  users: {}, orders: [], topup_requests: [], transactions: [],
-  next_order_id: 1, next_topup_id: 1,
-  products: {
-    uc: [
-      { id: 1, type: 'uc', name: '60 UC', price: 15000 },
-      { id: 2, type: 'uc', name: '325 UC', price: 65000 },
-      { id: 3, type: 'uc', name: '660 UC', price: 125000 },
-      { id: 4, type: 'uc', name: '1800 UC', price: 320000 },
-      { id: 5, type: 'uc', name: '3850 UC', price: 640000 },
-      { id: 6, type: 'uc', name: '8100 UC', price: 1275000 }
-    ],
-    popularity: [
-      { id: 7,  type: 'popularity', name: '100 Popularity',  price: 25000  },
-      { id: 8,  type: 'popularity', name: '300 Popularity',  price: 70000  },
-      { id: 9,  type: 'popularity', name: '600 Popularity',  price: 130000 },
-      { id: 10, type: 'popularity', name: '1500 Popularity', price: 300000 }
-    ],
-    diamond: [
-      { id: 11, type: 'diamond', name: '100 Diamond',  price: 18000  },
-      { id: 12, type: 'diamond', name: '310 Diamond',  price: 52000  },
-      { id: 13, type: 'diamond', name: '520 Diamond',  price: 85000  },
-      { id: 14, type: 'diamond', name: '1060 Diamond', price: 165000 },
-      { id: 15, type: 'diamond', name: '2180 Diamond', price: 330000 },
-      { id: 16, type: 'diamond', name: '5600 Diamond', price: 820000 }
-    ],
-    gems: [
-      { id: 17, type: 'gems', name: '80 Gems',    price: 12000   },
-      { id: 18, type: 'gems', name: '500 Gems',   price: 65000   },
-      { id: 19, type: 'gems', name: '1200 Gems',  price: 150000  },
-      { id: 20, type: 'gems', name: '2500 Gems',  price: 300000  },
-      { id: 21, type: 'gems', name: '6500 Gems',  price: 750000  },
-      { id: 22, type: 'gems', name: '14000 Gems', price: 1500000 }
-    ],
-    mlbb: [
-      { id: 23, type: 'mlbb', name: '86 Diamonds',   price: 20000  },
-      { id: 24, type: 'mlbb', name: '172 Diamonds',  price: 38000  },
-      { id: 25, type: 'mlbb', name: '257 Diamonds',  price: 55000  },
-      { id: 26, type: 'mlbb', name: '706 Diamonds',  price: 145000 },
-      { id: 27, type: 'mlbb', name: '1412 Diamonds', price: 280000 },
-      { id: 28, type: 'mlbb', name: '2195 Diamonds', price: 420000 }
-    ],
-    robux: [
-      { id: 29, type: 'robux', name: '400 Robux',   price: 45000  },
-      { id: 30, type: 'robux', name: '800 Robux',   price: 85000  },
-      { id: 31, type: 'robux', name: '1700 Robux',  price: 170000 },
-      { id: 32, type: 'robux', name: '4500 Robux',  price: 420000 },
-      { id: 33, type: 'robux', name: '10000 Robux', price: 900000 }
-    ]
-  }
+async function connectDB() {
+  await client.connect();
+  db = client.db('gameshop');
+  // Collectionlar
+  await db.collection('users').createIndex({ telegram_id: 1 }, { unique: true });
+  await db.collection('orders').createIndex({ telegram_id: 1 });
+  await db.collection('topup_requests').createIndex({ telegram_id: 1 });
+  await db.collection('transactions').createIndex({ telegram_id: 1 });
+  // Counter collection (order va topup IDlar uchun)
+  const counters = db.collection('counters');
+  await counters.updateOne({ _id: 'order_id' },   { $setOnInsert: { seq: 0 } }, { upsert: true });
+  await counters.updateOne({ _id: 'topup_id' },   { $setOnInsert: { seq: 0 } }, { upsert: true });
+  console.log('✅ MongoDB ulandi!');
+}
+
+async function nextSeq(name) {
+  const res = await db.collection('counters').findOneAndUpdate(
+    { _id: name },
+    { $inc: { seq: 1 } },
+    { returnDocument: 'after', upsert: true }
+  );
+  return res.seq;
+}
+
+// ========================
+// PRODUCTS (static)
+// ========================
+const PRODUCTS = {
+  uc: [
+    { id: 1,  type: 'uc',         name: '60 UC',          price: 15000  },
+    { id: 2,  type: 'uc',         name: '325 UC',         price: 65000  },
+    { id: 3,  type: 'uc',         name: '660 UC',         price: 125000 },
+    { id: 4,  type: 'uc',         name: '1800 UC',        price: 320000 },
+    { id: 5,  type: 'uc',         name: '3850 UC',        price: 640000 },
+    { id: 6,  type: 'uc',         name: '8100 UC',        price: 1275000}
+  ],
+  popularity: [
+    { id: 7,  type: 'popularity', name: '100 Popularity',  price: 25000  },
+    { id: 8,  type: 'popularity', name: '300 Popularity',  price: 70000  },
+    { id: 9,  type: 'popularity', name: '600 Popularity',  price: 130000 },
+    { id: 10, type: 'popularity', name: '1500 Popularity', price: 300000 }
+  ],
+  diamond: [
+    { id: 11, type: 'diamond',    name: '100 Diamond',    price: 18000  },
+    { id: 12, type: 'diamond',    name: '310 Diamond',    price: 52000  },
+    { id: 13, type: 'diamond',    name: '520 Diamond',    price: 85000  },
+    { id: 14, type: 'diamond',    name: '1060 Diamond',   price: 165000 },
+    { id: 15, type: 'diamond',    name: '2180 Diamond',   price: 330000 },
+    { id: 16, type: 'diamond',    name: '5600 Diamond',   price: 820000 }
+  ],
+  gems: [
+    { id: 17, type: 'gems',       name: '80 Gems',        price: 12000  },
+    { id: 18, type: 'gems',       name: '500 Gems',       price: 65000  },
+    { id: 19, type: 'gems',       name: '1200 Gems',      price: 150000 },
+    { id: 20, type: 'gems',       name: '2500 Gems',      price: 300000 },
+    { id: 21, type: 'gems',       name: '6500 Gems',      price: 750000 },
+    { id: 22, type: 'gems',       name: '14000 Gems',     price: 1500000}
+  ],
+  mlbb: [
+    { id: 23, type: 'mlbb',       name: '86 Diamonds',    price: 20000  },
+    { id: 24, type: 'mlbb',       name: '172 Diamonds',   price: 38000  },
+    { id: 25, type: 'mlbb',       name: '257 Diamonds',   price: 55000  },
+    { id: 26, type: 'mlbb',       name: '706 Diamonds',   price: 145000 },
+    { id: 27, type: 'mlbb',       name: '1412 Diamonds',  price: 280000 },
+    { id: 28, type: 'mlbb',       name: '2195 Diamonds',  price: 420000 }
+  ],
+  robux: [
+    { id: 29, type: 'robux',      name: '400 Robux',      price: 45000  },
+    { id: 30, type: 'robux',      name: '800 Robux',      price: 85000  },
+    { id: 31, type: 'robux',      name: '1700 Robux',     price: 170000 },
+    { id: 32, type: 'robux',      name: '4500 Robux',     price: 420000 },
+    { id: 33, type: 'robux',      name: '10000 Robux',    price: 900000 }
+  ]
 };
 
-function loadDB() {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-      for (const key of Object.keys(DEFAULT_DB.products)) {
-        if (!data.products[key]) data.products[key] = DEFAULT_DB.products[key];
-      }
-      return data;
-    }
-  } catch (e) {}
-  return JSON.parse(JSON.stringify(DEFAULT_DB));
-}
-
-function saveDB(data) {
-  try { fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)); }
-  catch (e) { console.error('DB xato:', e.message); }
-}
-
-function getOrCreateUser(telegramId, username, fullName) {
-  const data = loadDB();
-  const id = String(telegramId);
-  if (!data.users[id]) {
-    data.users[id] = { telegram_id: telegramId, username: username || null, full_name: fullName || null, balance: 0, total_spent: 0, joined_at: new Date().toISOString() };
-  } else {
-    if (username) data.users[id].username = username;
-    if (fullName)  data.users[id].full_name = fullName;
-  }
-  saveDB(data); return data.users[id];
-}
-
-function getUser(telegramId) { const d = loadDB(); return d.users[String(telegramId)] || null; }
-function getBalance(telegramId) { const u = getUser(telegramId); return u ? u.balance : 0; }
-
-function addBalance(telegramId, amount, desc) {
-  const data = loadDB(); const id = String(telegramId);
-  if (!data.users[id]) return;
-  data.users[id].balance += amount;
-  data.transactions.push({ telegram_id: telegramId, type: 'topup', amount, description: desc || "To'ldirish", created_at: new Date().toISOString() });
-  saveDB(data);
-}
-
-function deductBalance(telegramId, amount, desc) {
-  const data = loadDB(); const id = String(telegramId);
-  if (!data.users[id] || data.users[id].balance < amount) return false;
-  data.users[id].balance -= amount;
-  data.users[id].total_spent += amount;
-  data.transactions.push({ telegram_id: telegramId, type: 'purchase', amount: -amount, description: desc || 'Xarid', created_at: new Date().toISOString() });
-  saveDB(data); return true;
-}
-
-function getAllUsers() { return Object.values(loadDB().users); }
-
-function createTopupReq(telegramId, amount, fileId, fileType) {
-  const data = loadDB();
-  const id = data.next_topup_id++;
-  data.topup_requests.push({ id, telegram_id: telegramId, amount, receipt_file_id: fileId, receipt_type: fileType, status: 'pending', created_at: new Date().toISOString(), reviewed_by: null, reject_reason: null });
-  saveDB(data); return id;
-}
-
-function getPendingTopups() { return loadDB().topup_requests.filter(r => r.status === 'pending'); }
-
-function approveTopup(id, adminId) {
-  const data = loadDB();
-  const req = data.topup_requests.find(r => r.id === parseInt(id));
-  if (!req || req.status !== 'pending') return false;
-  req.status = 'approved'; req.reviewed_by = adminId; req.reviewed_at = new Date().toISOString();
-  saveDB(data); addBalance(req.telegram_id, req.amount, `To'ldirish #${id} tasdiqlandi`); return req;
-}
-
-function rejectTopup(id, adminId, reason) {
-  const data = loadDB();
-  const req = data.topup_requests.find(r => r.id === parseInt(id));
-  if (!req || req.status !== 'pending') return false;
-  req.status = 'rejected'; req.reviewed_by = adminId; req.reject_reason = reason || null; req.reviewed_at = new Date().toISOString();
-  saveDB(data); return req;
-}
-
-function createOrder(telegramId, type, name, price, gameId, gameNick) {
-  const data = loadDB();
-  const id = data.next_order_id++;
-  data.orders.push({ id, telegram_id: telegramId, product_type: type, product_name: name, price, game_id: gameId, game_nick: gameNick, status: 'pending', created_at: new Date().toISOString(), completed_at: null });
-  saveDB(data); return id;
-}
-
-function getOrder(id) { return loadDB().orders.find(o => o.id === parseInt(id)) || null; }
-function getUserOrders(telegramId) { return loadDB().orders.filter(o => o.telegram_id === telegramId).sort((a,b) => new Date(b.created_at)-new Date(a.created_at)).slice(0,10); }
-function getAllOrders() { return loadDB().orders.sort((a,b) => new Date(b.created_at)-new Date(a.created_at)).slice(0,30); }
-
-function completeOrder(id) {
-  const data = loadDB(); const o = data.orders.find(o => o.id === parseInt(id));
-  if (o) { o.status = 'completed'; o.completed_at = new Date().toISOString(); saveDB(data); }
-}
-
-function cancelOrder(id) {
-  const data = loadDB(); const o = data.orders.find(o => o.id === parseInt(id));
-  if (o) { o.status = 'cancelled'; saveDB(data); }
-}
-
 function getProductById(id) {
-  return Object.values(loadDB().products).flat().find(p => p.id === parseInt(id)) || null;
+  return Object.values(PRODUCTS).flat().find(p => p.id === parseInt(id)) || null;
+}
+function getProducts(type) { return PRODUCTS[type] || []; }
+
+// ========================
+// DATABASE FUNCTIONS
+// ========================
+async function getOrCreateUser(telegramId, username, fullName) {
+  const col = db.collection('users');
+  const id  = parseInt(telegramId);
+  await col.updateOne(
+    { telegram_id: id },
+    {
+      $setOnInsert: { telegram_id: id, balance: 0, total_spent: 0, joined_at: new Date() },
+      $set: { username: username || null, full_name: fullName || null }
+    },
+    { upsert: true }
+  );
+  return col.findOne({ telegram_id: id });
 }
 
-function getProducts(type) { return loadDB().products[type] || []; }
+async function getUser(telegramId) {
+  return db.collection('users').findOne({ telegram_id: parseInt(telegramId) });
+}
 
-function getStats() {
-  const data = loadDB();
-  const done = data.orders.filter(o => o.status === 'completed');
+async function getBalance(telegramId) {
+  const u = await getUser(telegramId);
+  return u ? u.balance : 0;
+}
+
+async function addBalance(telegramId, amount, desc) {
+  const id = parseInt(telegramId);
+  await db.collection('users').updateOne({ telegram_id: id }, { $inc: { balance: amount } });
+  await db.collection('transactions').insertOne({
+    telegram_id: id, type: 'topup', amount,
+    description: desc || "To'ldirish", created_at: new Date()
+  });
+}
+
+async function deductBalance(telegramId, amount, desc) {
+  const id  = parseInt(telegramId);
+  const res = await db.collection('users').findOneAndUpdate(
+    { telegram_id: id, balance: { $gte: amount } },
+    { $inc: { balance: -amount, total_spent: amount } },
+    { returnDocument: 'after' }
+  );
+  if (!res) return false;
+  await db.collection('transactions').insertOne({
+    telegram_id: id, type: 'purchase', amount: -amount,
+    description: desc || 'Xarid', created_at: new Date()
+  });
+  return true;
+}
+
+async function getAllUsers() {
+  return db.collection('users').find().toArray();
+}
+
+async function createTopupReq(telegramId, amount, fileId, fileType) {
+  const id = await nextSeq('topup_id');
+  await db.collection('topup_requests').insertOne({
+    id, telegram_id: parseInt(telegramId), amount,
+    receipt_file_id: fileId, receipt_type: fileType,
+    status: 'pending', created_at: new Date(),
+    reviewed_by: null, reject_reason: null
+  });
+  return id;
+}
+
+async function getPendingTopups() {
+  return db.collection('topup_requests').find({ status: 'pending' }).toArray();
+}
+
+async function approveTopup(id, adminId) {
+  const req = await db.collection('topup_requests').findOneAndUpdate(
+    { id: parseInt(id), status: 'pending' },
+    { $set: { status: 'approved', reviewed_by: adminId, reviewed_at: new Date() } },
+    { returnDocument: 'after' }
+  );
+  if (!req) return false;
+  await addBalance(req.telegram_id, req.amount, `To'ldirish #${id} tasdiqlandi`);
+  return req;
+}
+
+async function rejectTopup(id, adminId, reason) {
+  return db.collection('topup_requests').findOneAndUpdate(
+    { id: parseInt(id), status: 'pending' },
+    { $set: { status: 'rejected', reviewed_by: adminId, reject_reason: reason || null, reviewed_at: new Date() } },
+    { returnDocument: 'after' }
+  );
+}
+
+async function createOrder(telegramId, type, name, price, gameId, gameNick) {
+  const id = await nextSeq('order_id');
+  await db.collection('orders').insertOne({
+    id, telegram_id: parseInt(telegramId),
+    product_type: type, product_name: name, price,
+    game_id: gameId, game_nick: gameNick,
+    status: 'pending', created_at: new Date(), completed_at: null
+  });
+  return id;
+}
+
+async function getOrder(id) {
+  return db.collection('orders').findOne({ id: parseInt(id) });
+}
+
+async function getUserOrders(telegramId) {
+  return db.collection('orders')
+    .find({ telegram_id: parseInt(telegramId) })
+    .sort({ created_at: -1 }).limit(10).toArray();
+}
+
+async function getAllOrders() {
+  return db.collection('orders').find().sort({ created_at: -1 }).limit(30).toArray();
+}
+
+async function completeOrder(id) {
+  await db.collection('orders').updateOne(
+    { id: parseInt(id) },
+    { $set: { status: 'completed', completed_at: new Date() } }
+  );
+}
+
+async function cancelOrder(id) {
+  await db.collection('orders').updateOne({ id: parseInt(id) }, { $set: { status: 'cancelled' } });
+}
+
+async function getStats() {
+  const [users, orders, pendingTopups, pendingOrders] = await Promise.all([
+    db.collection('users').countDocuments(),
+    db.collection('orders').find({ status: 'completed' }).toArray(),
+    db.collection('topup_requests').countDocuments({ status: 'pending' }),
+    db.collection('orders').countDocuments({ status: 'pending' })
+  ]);
   return {
-    users: Object.keys(data.users).length,
-    orders: done.length,
-    revenue: done.reduce((s,o) => s+o.price, 0),
-    pendingTopups: data.topup_requests.filter(r => r.status === 'pending').length,
-    pendingOrders: data.orders.filter(o => o.status === 'pending').length
+    users,
+    orders: orders.length,
+    revenue: orders.reduce((s, o) => s + o.price, 0),
+    pendingTopups,
+    pendingOrders
   };
 }
 
-function getLastTransactions(telegramId) {
-  return loadDB().transactions.filter(t => t.telegram_id === telegramId).sort((a,b) => new Date(b.created_at)-new Date(a.created_at)).slice(0,5);
+async function getLastTransactions(telegramId) {
+  return db.collection('transactions')
+    .find({ telegram_id: parseInt(telegramId) })
+    .sort({ created_at: -1 }).limit(5).toArray();
 }
 
 // ========================
@@ -221,25 +275,20 @@ function gameInfo(type) {
   }[type] || { name: type, emoji: '🎮', currency: type, idLabel: 'ID' };
 }
 
-function isAdmin(id) { return ADMIN_IDS.includes(parseInt(id)); }
-function getState(id) { return userStates[id] || {}; }
-function setState(id, s) { userStates[id] = { ...getState(id), ...s }; }
-function clearState(id) { delete userStates[id]; }
+function isAdmin(id)      { return ADMIN_IDS.includes(parseInt(id)); }
+function getState(id)     { return userStates[id] || {}; }
+function setState(id, s)  { userStates[id] = { ...getState(id), ...s }; }
+function clearState(id)   { delete userStates[id]; }
 
 // ========================
 // AI CHAT (Gemini)
 // ========================
-// Har bir foydalanuvchi uchun suhbat tarixi saqlanadi (xotira)
 const aiChatHistories = {};
 
 async function askGemini(uid, userMessage) {
   if (!genAI) throw new Error('GEMINI_API_KEY sozlanmagan');
-
-  // Suhbat tarixini olish yoki yangi boshlash
   if (!aiChatHistories[uid]) aiChatHistories[uid] = [];
-
   const history = aiChatHistories[uid];
-
   const model = genAI.getGenerativeModel({
     model: 'gemini-1.5-flash',
     systemInstruction:
@@ -248,20 +297,12 @@ async function askGemini(uid, userMessage) {
       'O\'yinlar, top-up, va umumiy savollarga javob bering. ' +
       'Qisqa va aniq javob bering.'
   });
-
-  const chat = model.startChat({ history });
+  const chat   = model.startChat({ history });
   const result = await chat.sendMessage(userMessage);
-  const reply = result.response.text();
-
-  // Tarixga qo'shish (keyingi so'rovlar uchun kontekst)
+  const reply  = result.response.text();
   aiChatHistories[uid].push({ role: 'user',  parts: [{ text: userMessage }] });
   aiChatHistories[uid].push({ role: 'model', parts: [{ text: reply }] });
-
-  // Tarixni 20 xabarda cheklash (token limit uchun)
-  if (aiChatHistories[uid].length > 20) {
-    aiChatHistories[uid] = aiChatHistories[uid].slice(-20);
-  }
-
+  if (aiChatHistories[uid].length > 20) aiChatHistories[uid] = aiChatHistories[uid].slice(-20);
   return reply;
 }
 
@@ -273,12 +314,12 @@ function exitAiBtn() {
 // KEYBOARDS
 // ========================
 const CATEGORY_BUTTONS = {
-  '🎮 PUBG — UC':              'uc',
-  '⭐ PUBG — Popularity':      'popularity',
-  '🔥 Free Fire — Diamond':    'diamond',
-  '⚔️ Clash of Clans — Gems':  'gems',
+  '🎮 PUBG — UC':                'uc',
+  '⭐ PUBG — Popularity':        'popularity',
+  '🔥 Free Fire — Diamond':      'diamond',
+  '⚔️ Clash of Clans — Gems':   'gems',
   '🌟 Mobile Legends — Diamond': 'mlbb',
-  '🟥 Roblox — Robux':         'robux'
+  '🟥 Roblox — Robux':           'robux'
 };
 
 const TOPUP_BUTTON    = '💰 Hisobni to\'ldirish';
@@ -320,7 +361,7 @@ function topupMenu() {
     [{ text: '20,000 so\'m',  callback_data: 'topup_20000'  }, { text: '50,000 so\'m',  callback_data: 'topup_50000'  }],
     [{ text: '100,000 so\'m', callback_data: 'topup_100000' }, { text: '200,000 so\'m', callback_data: 'topup_200000' }],
     [{ text: '✏️ Boshqa miqdor', callback_data: 'topup_custom' }],
-    [{ text: '🔙 Orqaga',    callback_data: 'main_menu' }]
+    [{ text: '🔙 Orqaga',       callback_data: 'main_menu'   }]
   ]};
 }
 
@@ -360,7 +401,7 @@ async function sendPayment(chatId, msgId, amount, edit) {
 // START
 // ========================
 async function sendStartMenu(chatId, from) {
-  getOrCreateUser(from.id, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
+  await getOrCreateUser(from.id, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
   await bot.sendMessage(chatId,
     `👋 Salom, <b>${from.first_name}</b>!\n\n` +
     `🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n` +
@@ -378,13 +419,13 @@ async function sendStartMenu(chatId, from) {
 
 bot.onText(/\/start/, async (msg) => {
   clearState(msg.from.id);
-  delete aiChatHistories[msg.from.id]; // AI tarixini tozalash
+  delete aiChatHistories[msg.from.id];
   await sendStartMenu(msg.chat.id, msg.from);
 });
 
 bot.onText(/\/admin/, async (msg) => {
   if (!isAdmin(msg.from.id)) return bot.sendMessage(msg.chat.id, '❌ Ruxsat yo\'q!');
-  const s = getStats();
+  const s = await getStats();
   await bot.sendMessage(msg.chat.id,
     `⚙️ <b>Admin Panel</b>\n\n` +
     `👥 Foydalanuvchilar: <b>${s.users}</b>\n` +
@@ -401,24 +442,20 @@ bot.onText(/\/admin/, async (msg) => {
 // ========================
 bot.on('callback_query', async (query) => {
   const { data, from, message } = query;
-  const uid   = from.id;
+  const uid    = from.id;
   const chatId = message.chat.id;
   const msgId  = message.message_id;
   await bot.answerCallbackQuery(query.id);
 
   try {
-    // AI CHATDAN CHIQISH
     if (data === 'exit_ai') {
       clearState(uid);
       delete aiChatHistories[uid];
       await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msgId });
-      return bot.sendMessage(chatId,
-        `✅ AI chatdan chiqdingiz.\n\n👇 Pastdagi menyudan tanlang:`,
-        { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }
-      );
+      return bot.sendMessage(chatId, `✅ AI chatdan chiqdingiz.\n\n👇 Pastdagi menyudan tanlang:`,
+        { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() });
     }
 
-    // MAIN MENU
     if (data === 'main_menu') {
       clearState(uid);
       await bot.editMessageText(
@@ -427,7 +464,6 @@ bot.on('callback_query', async (query) => {
       );
     }
 
-    // KATEGORIYA
     else if (data.startsWith('buy_')) {
       const type     = data.replace('buy_', '');
       const g        = gameInfo(type);
@@ -438,12 +474,11 @@ bot.on('callback_query', async (query) => {
       );
     }
 
-    // MAHSULOT
     else if (data.startsWith('product_')) {
       const pid     = parseInt(data.split('_')[1]);
       const product = getProductById(pid);
       if (!product) return;
-      const bal = getBalance(uid);
+      const bal = await getBalance(uid);
       const g   = gameInfo(product.type);
       setState(uid, { selectedProduct: pid, step: 'enter_id' });
 
@@ -468,7 +503,6 @@ bot.on('callback_query', async (query) => {
       }
     }
 
-    // BUYURTMA TASDIQLASH
     else if (data.startsWith('confirm_')) {
       const pid     = parseInt(data.replace('confirm_', ''));
       const state   = getState(uid);
@@ -476,14 +510,14 @@ bot.on('callback_query', async (query) => {
       if (!product || !state.gameId) return;
 
       const g        = gameInfo(product.type);
-      const deducted = deductBalance(uid, product.price, product.name + ' xaridi');
+      const deducted = await deductBalance(uid, product.price, product.name + ' xaridi');
       if (!deducted) {
         return bot.editMessageText('❌ Balans yetarli emas!', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: backBtn() });
       }
 
-      const orderId = createOrder(uid, product.type, product.name, product.price, state.gameId, state.gameNick || '-');
+      const orderId = await createOrder(uid, product.type, product.name, product.price, state.gameId, state.gameNick || '-');
       clearState(uid);
-      const newBal = getBalance(uid);
+      const newBal = await getBalance(uid);
 
       const orderDetails = product.type === 'robux'
         ? `👤 Roblox Nik: <b>${state.gameId}</b>`
@@ -508,7 +542,6 @@ bot.on('callback_query', async (query) => {
       }
     }
 
-    // HISOB TO'LDIRISH
     else if (data === 'topup_menu') {
       await bot.editMessageText(
         `💰 <b>Hisobni to\'ldirish</b>\n\n📌 To\'lov usuli: Admin orqali\n📸 Chek yuboring → Admin tasdiqlaydi → Balans qo\'shiladi`,
@@ -521,7 +554,8 @@ bot.on('callback_query', async (query) => {
       if (val === 'custom') {
         setState(uid, { step: 'enter_amount' });
         await bot.editMessageText(`✏️ Nechta so\'m to\'ldirmoqchisiz?\nFaqat raqam kiriting:`,
-          { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '❌ Bekor', callback_data: 'topup_menu' }]] } });
+          { chat_id: chatId, message_id: msgId, parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [[{ text: '❌ Bekor', callback_data: 'topup_menu' }]] } });
       } else {
         const amount = parseInt(val);
         setState(uid, { step: 'send_receipt', topupAmount: amount });
@@ -529,10 +563,9 @@ bot.on('callback_query', async (query) => {
       }
     }
 
-    // MENING HISOBIM
     else if (data === 'my_account') {
-      const user = getOrCreateUser(uid, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
-      const txs  = getLastTransactions(uid);
+      const user = await getOrCreateUser(uid, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
+      const txs  = await getLastTransactions(uid);
       const txText = txs.length
         ? '\n\n📋 <b>So\'nggi operatsiyalar:</b>\n' + txs.map(t => `${t.amount > 0 ? '+' : ''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n')
         : '';
@@ -543,9 +576,8 @@ bot.on('callback_query', async (query) => {
       );
     }
 
-    // BUYURTMALARIM
     else if (data === 'my_orders') {
-      const orders = getUserOrders(uid);
+      const orders = await getUserOrders(uid);
       if (!orders.length) return bot.editMessageText('📋 Hali buyurtmalar yo\'q.', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: backBtn() });
       let text = `📋 <b>Buyurtmalarim</b>\n\n`;
       orders.forEach((o, i) => {
@@ -556,7 +588,6 @@ bot.on('callback_query', async (query) => {
       await bot.editMessageText(text, { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: backBtn() });
     }
 
-    // YORDAM
     else if (data === 'support') {
       await bot.editMessageText(
         `📞 <b>Yordam</b>\n\n👨‍💼 Admin: @admin_username\n⏰ Ish vaqti: 09:00 - 22:00\n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,
@@ -568,7 +599,7 @@ bot.on('callback_query', async (query) => {
     // ADMIN PANEL
     // ========================
     else if (data === 'adm_stats' && isAdmin(uid)) {
-      const s = getStats();
+      const s = await getStats();
       await bot.editMessageText(
         `📊 <b>Statistika</b>\n\n` +
         `👥 Foydalanuvchilar: <b>${s.users}</b>\n` +
@@ -581,11 +612,11 @@ bot.on('callback_query', async (query) => {
     }
 
     else if (data === 'adm_topups' && isAdmin(uid)) {
-      const reqs = getPendingTopups();
+      const reqs = await getPendingTopups();
       if (!reqs.length) return bot.editMessageText('✅ Kutayotgan to\'ldirish yo\'q.', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
       await bot.editMessageText(`⏳ <b>${reqs.length} ta kutayotgan to\'ldirish</b>`, { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
       for (const req of reqs) {
-        const user = getUser(req.telegram_id);
+        const user = await getUser(req.telegram_id);
         const name = user?.username ? `@${user.username}` : (user?.full_name || `ID: ${req.telegram_id}`);
         const cap  = `💰 <b>To\'ldirish #${req.id}</b>\n👤 ${name} (${req.telegram_id})\n💰 <b>${fmt(req.amount)}</b>`;
         try {
@@ -596,7 +627,7 @@ bot.on('callback_query', async (query) => {
     }
 
     else if (data === 'adm_orders' && isAdmin(uid)) {
-      const orders = getAllOrders();
+      const orders = await getAllOrders();
       if (!orders.length) return bot.editMessageText('📦 Buyurtmalar yo\'q.', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
       let text = `📦 <b>So\'nggi buyurtmalar:</b>\n\n`;
       orders.forEach(o => {
@@ -608,8 +639,9 @@ bot.on('callback_query', async (query) => {
     }
 
     else if (data === 'adm_users' && isAdmin(uid)) {
-      const users = getAllUsers().slice(0, 30);
-      let text = `👥 <b>Foydalanuvchilar (${getAllUsers().length} ta):</b>\n\n`;
+      const allUsers = await getAllUsers();
+      const users    = allUsers.slice(0, 30);
+      let text = `👥 <b>Foydalanuvchilar (${allUsers.length} ta):</b>\n\n`;
       users.forEach((u, i) => {
         const name = u.username ? `@${u.username}` : (u.full_name || 'Noma\'lum');
         text += `${i+1}. ${name} — <b>${fmt(u.balance)}</b>\n`;
@@ -633,9 +665,9 @@ bot.on('callback_query', async (query) => {
 
     else if (data.startsWith('adm_approve_') && isAdmin(uid)) {
       const reqId = parseInt(data.replace('adm_approve_', ''));
-      const req   = approveTopup(reqId, uid);
+      const req   = await approveTopup(reqId, uid);
       if (!req) return;
-      const newBal = getBalance(req.telegram_id);
+      const newBal = await getBalance(req.telegram_id);
       await bot.editMessageText(message.text + '\n\n✅ <b>TASDIQLANDI</b>', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML' });
       await bot.sendMessage(req.telegram_id,
         `✅ <b>Hisobingiz to\'ldirildi!</b>\n\n💰 Qo\'shildi: <b>${fmt(req.amount)}</b>\n💳 Balans: <b>${fmt(newBal)}</b>\n\nXarid qilishingiz mumkin! 🎮`,
@@ -651,9 +683,9 @@ bot.on('callback_query', async (query) => {
 
     else if (data.startsWith('adm_done_') && isAdmin(uid)) {
       const orderId = parseInt(data.replace('adm_done_', ''));
-      const order   = getOrder(orderId);
+      const order   = await getOrder(orderId);
       if (!order) return;
-      completeOrder(orderId);
+      await completeOrder(orderId);
       await bot.editMessageText(message.text + '\n\n✅ <b>BAJARILDI</b>', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML' });
       const g = gameInfo(order.product_type);
       let doneMsg = `✅ <b>Buyurtmangiz bajarildi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${order.product_name}</b>\n`;
@@ -666,10 +698,10 @@ bot.on('callback_query', async (query) => {
 
     else if (data.startsWith('adm_cancel_') && isAdmin(uid)) {
       const orderId = parseInt(data.replace('adm_cancel_', ''));
-      const order   = getOrder(orderId);
+      const order   = await getOrder(orderId);
       if (!order) return;
-      addBalance(order.telegram_id, order.price, `Buyurtma #${orderId} bekor — pul qaytarildi`);
-      cancelOrder(orderId);
+      await addBalance(order.telegram_id, order.price, `Buyurtma #${orderId} bekor — pul qaytarildi`);
+      await cancelOrder(orderId);
       await bot.editMessageText(message.text + '\n\n❌ <b>BEKOR QILINDI — pul qaytarildi</b>', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML' });
       await bot.sendMessage(order.telegram_id,
         `⚠️ <b>Buyurtma bekor qilindi</b>\n\n📦 #${orderId}\n💰 Pul qaytarildi: <b>${fmt(order.price)}</b>`,
@@ -692,56 +724,32 @@ bot.on('message', async (msg) => {
   const state  = getState(uid);
   if (text && text.startsWith('/') && text !== '/start') return;
 
-  // ========================
-  // 🤖 AI BILAN SUHBAT
-  // ========================
   if (text === AI_BUTTON) {
     clearState(uid);
-    delete aiChatHistories[uid]; // yangi suhbat boshlash
-
+    delete aiChatHistories[uid];
     if (!genAI) {
-      return bot.sendMessage(chatId,
-        `⚠️ AI hali sozlanmagan.\n\nAdmin .env faylga GEMINI_API_KEY qo\'shishi kerak.`,
-        { parse_mode: 'HTML' }
-      );
+      return bot.sendMessage(chatId, `⚠️ AI hali sozlanmagan.\n\nAdmin .env faylga GEMINI_API_KEY qo\'shishi kerak.`, { parse_mode: 'HTML' });
     }
-
     const displayName = from.username ? `@${from.username}` : from.first_name;
     setState(uid, { step: 'ai_chat' });
-
     return bot.sendMessage(chatId,
-      `🤖 <b>AI Yordamchi</b>\n\n` +
-      `Salom, ${displayName}! Sizni botimizda ko\'rganimizdan xursandmiz 😊\n\n` +
-      `Nima xohlaysiz? Savolingizni yozavering, men yordam beraman!\n\n` +
-      `<i>Chatdan chiqish uchun pastdagi tugmani bosing.</i>`,
+      `🤖 <b>AI Yordamchi</b>\n\nSalom, ${displayName}! Savolingizni yozavering!\n\n<i>Chatdan chiqish uchun pastdagi tugmani bosing.</i>`,
       { parse_mode: 'HTML', reply_markup: exitAiBtn() }
     );
   }
 
-  // ========================
-  // AI CHAT REJIMI
-  // ========================
   if (state.step === 'ai_chat') {
-    if (!text) return; // rasmlar va fayllarni ignore qilish
-
-    // "yozmoqda..." ko'rsatish
+    if (!text) return;
     await bot.sendChatAction(chatId, 'typing');
-
     try {
       const reply = await askGemini(uid, text);
       return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', reply_markup: exitAiBtn() });
     } catch (err) {
       console.error('Gemini xato:', err.message);
-      return bot.sendMessage(chatId,
-        `⚠️ AI javob bera olmadi. Qayta urinib ko\'ring yoki keyinroq yozing.`,
-        { reply_markup: exitAiBtn() }
-      );
+      return bot.sendMessage(chatId, `⚠️ AI javob bera olmadi. Qayta urinib ko\'ring.`, { reply_markup: exitAiBtn() });
     }
   }
 
-  // ========================
-  // PASTKI MENYU TUGMALARI
-  // ========================
   if (text && CATEGORY_BUTTONS[text]) {
     clearState(uid);
     const type     = CATEGORY_BUTTONS[text];
@@ -763,8 +771,8 @@ bot.on('message', async (msg) => {
 
   if (text === ACCOUNT_BUTTON) {
     clearState(uid);
-    const user = getOrCreateUser(uid, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
-    const txs  = getLastTransactions(uid);
+    const user = await getOrCreateUser(uid, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
+    const txs  = await getLastTransactions(uid);
     const txText = txs.length
       ? '\n\n📋 <b>So\'nggi operatsiyalar:</b>\n' + txs.map(t => `${t.amount > 0 ? '+' : ''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n')
       : '';
@@ -776,7 +784,7 @@ bot.on('message', async (msg) => {
 
   if (text === ORDERS_BUTTON) {
     clearState(uid);
-    const orders = getUserOrders(uid);
+    const orders = await getUserOrders(uid);
     if (!orders.length) return bot.sendMessage(chatId, '📋 Hali buyurtmalar yo\'q.', { parse_mode: 'HTML' });
     let ordersText = `📋 <b>Buyurtmalarim</b>\n\n`;
     orders.forEach((o, i) => {
@@ -804,7 +812,6 @@ bot.on('message', async (msg) => {
   }
 
   try {
-    // GAME ID
     if (state.step === 'enter_id') {
       if (!text) return bot.sendMessage(chatId, '⚠️ Matn kiriting!');
       const product = getProductById(state.selectedProduct);
@@ -827,13 +834,12 @@ bot.on('message', async (msg) => {
         setState(uid, { gameId: cleanId, step: 'enter_nick' });
       } else {
         if (!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId, `❌ Faqat raqamlar kiriting!\nMasalan: <code>512345678</code>`, { parse_mode: 'HTML' });
-        if (cleanId.length > 15) return bot.sendMessage(chatId, `❌ ID maksimum 15 ta raqam!`);
+        if (cleanId.length > 15)    return bot.sendMessage(chatId, `❌ ID maksimum 15 ta raqam!`);
         setState(uid, { gameId: cleanId, step: 'enter_nick' });
       }
       await bot.sendMessage(chatId, `✅ ID: <code>${cleanId}</code>\n\n👤 Endi <b>nikneymingizni</b> yozing:`, { parse_mode: 'HTML', reply_markup: cancelBtn() });
     }
 
-    // NIK
     else if (state.step === 'enter_nick') {
       if (!text || text.trim().length < 2) return bot.sendMessage(chatId, '⚠️ Nikneym noto\'g\'ri!');
       const nik     = text.trim().slice(0, 30);
@@ -847,17 +853,15 @@ bot.on('message', async (msg) => {
       );
     }
 
-    // TO'LDIRISH MIQDORI
     else if (state.step === 'enter_amount') {
       if (!text) return;
       const amount = parseInt(text.replace(/[\s,]/g, ''));
-      if (isNaN(amount) || amount < 1000)    return bot.sendMessage(chatId, '❌ Minimum 1,000 so\'m!');
-      if (amount > 10000000) return bot.sendMessage(chatId, '❌ Maksimum 10,000,000 so\'m!');
+      if (isNaN(amount) || amount < 1000) return bot.sendMessage(chatId, '❌ Minimum 1,000 so\'m!');
+      if (amount > 10000000)              return bot.sendMessage(chatId, '❌ Maksimum 10,000,000 so\'m!');
       setState(uid, { step: 'send_receipt', topupAmount: amount });
       await sendPayment(chatId, null, amount, false);
     }
 
-    // CHEK
     else if (state.step === 'send_receipt') {
       const amount = state.topupAmount;
       if (!amount) return;
@@ -866,14 +870,14 @@ bot.on('message', async (msg) => {
       else if (document) { fileId = document.file_id; fileType = 'document'; }
       if (!fileId) return bot.sendMessage(chatId, `📸 Chekni <b>rasm yoki fayl</b> sifatida yuboring!`, { parse_mode: 'HTML' });
 
-      const reqId = createTopupReq(uid, amount, fileId, fileType);
+      const reqId = await createTopupReq(uid, amount, fileId, fileType);
       clearState(uid);
       await bot.sendMessage(chatId,
         `✅ <b>Chek qabul qilindi!</b>\n\n📋 So\'rov #${reqId}\n💰 <b>${fmt(amount)}</b>\n\n⏳ Admin tasdig\'ini kuting (5-30 daqiqa)`,
         { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }
       );
 
-      const user = getUser(uid);
+      const user = await getUser(uid);
       const name = user?.username ? `@${user.username}` : (user?.full_name || `ID: ${uid}`);
       const cap  = `💰 <b>Yangi to\'ldirish #${reqId}</b>\n\n👤 ${name} (${uid})\n💰 <b>${fmt(amount)}</b>`;
       for (const adminId of ADMIN_IDS) {
@@ -884,7 +888,6 @@ bot.on('message', async (msg) => {
       }
     }
 
-    // ADMIN: BALANS BERISH
     else if (state.step === 'adm_give_balance' && isAdmin(uid)) {
       if (!text) return;
       const parts    = text.trim().split(/\s+/);
@@ -892,19 +895,18 @@ bot.on('message', async (msg) => {
       const targetId = parseInt(parts[0]);
       const amount   = parseInt(parts[1]);
       if (isNaN(targetId) || isNaN(amount) || amount <= 0) return bot.sendMessage(chatId, '❌ Noto\'g\'ri format!');
-      const targetUser = getUser(targetId);
+      const targetUser = await getUser(targetId);
       if (!targetUser) return bot.sendMessage(chatId, `❌ Foydalanuvchi topilmadi: ${targetId}`);
-      addBalance(targetId, amount, 'Admin tomonidan qo\'shildi');
+      await addBalance(targetId, amount, 'Admin tomonidan qo\'shildi');
       clearState(uid);
-      const newBal = getBalance(targetId);
+      const newBal = await getBalance(targetId);
       const tName  = targetUser.username ? `@${targetUser.username}` : (targetUser.full_name || `ID: ${targetId}`);
       await bot.sendMessage(chatId, `✅ ${tName} ga <b>${fmt(amount)}</b> qo\'shildi.\nYangi balans: <b>${fmt(newBal)}</b>`, { parse_mode: 'HTML' });
       await bot.sendMessage(targetId, `💳 <b>Hisobingizga ${fmt(amount)} qo\'shildi!</b>\n\nYangi balans: <b>${fmt(newBal)}</b>`, { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }).catch(()=>{});
     }
 
-    // ADMIN: RAD ETISH
     else if (state.step === 'adm_reject' && isAdmin(uid)) {
-      const req = rejectTopup(state.rejectId, uid, text);
+      const req = await rejectTopup(state.rejectId, uid, text);
       if (!req) return bot.sendMessage(chatId, '❌ Topilmadi!');
       clearState(uid);
       await bot.sendMessage(chatId, `✅ So\'rov #${req.id} rad etildi.`);
@@ -914,11 +916,10 @@ bot.on('message', async (msg) => {
       );
     }
 
-    // ADMIN: BROADCAST
     else if (state.step === 'adm_broadcast' && isAdmin(uid)) {
       if (!text) return;
       clearState(uid);
-      const users = getAllUsers();
+      const users = await getAllUsers();
       let sent = 0, failed = 0;
       await bot.sendMessage(chatId, `📢 Yuborilmoqda... (${users.length} ta)`);
       for (const u of users) {
@@ -928,7 +929,6 @@ bot.on('message', async (msg) => {
       await bot.sendMessage(chatId, `✅ Tugadi! Yuborildi: ${sent} | Xato: ${failed}`);
     }
 
-    // NOMA'LUM
     else if (text && !state.step) {
       await bot.sendMessage(chatId, `🎮 <b>Game Shop</b>\n\n👇 Pastdagi menyudan tanlang:`, { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() });
     }
@@ -945,5 +945,14 @@ bot.on('polling_error', err => console.error('Polling:', err.message));
 process.on('unhandledRejection', err => console.error('Unhandled:', err));
 
 http.createServer((req, res) => { res.writeHead(200); res.end('Game Shop Bot ishlayapti! 🎮'); }).listen(PORT, () => console.log(`🌐 Port ${PORT}`));
-console.log('🚀 Game Shop Bot ishga tushdi!');
-console.log(`👥 Adminlar: ${ADMIN_IDS.join(', ')}`);
+
+// ========================
+// START
+// ========================
+connectDB().then(() => {
+  console.log('🚀 Game Shop Bot ishga tushdi!');
+  console.log(`👥 Adminlar: ${ADMIN_IDS.join(', ')}`);
+}).catch(err => {
+  console.error('❌ MongoDB ulanmadi:', err.message);
+  process.exit(1);
+});
