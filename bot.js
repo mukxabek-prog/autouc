@@ -10,8 +10,6 @@ const http = require('http');
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(Boolean);
 const PORT = process.env.PORT || 3000;
-// Majburiy obuna kanali, masalan: @mychannel (Bot shu kanalda ADMIN bo'lishi shart!)
-const FORCE_SUB_CHANNEL = (process.env.FORCE_SUB_CHANNEL || '').trim();
 
 if (!BOT_TOKEN) { console.error('❌ BOT_TOKEN topilmadi!'); process.exit(1); }
 
@@ -81,7 +79,6 @@ function loadDB() {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-      // Yangi o'yinlar bo'lmasa qo'shish
       for (const key of Object.keys(DEFAULT_DB.products)) {
         if (!data.products[key]) data.products[key] = DEFAULT_DB.products[key];
       }
@@ -222,52 +219,8 @@ function setState(id, s) { userStates[id] = { ...getState(id), ...s }; }
 function clearState(id) { delete userStates[id]; }
 
 // ========================
-// MAJBURIY OBUNA
-// ========================
-async function isUserSubscribed(uid) {
-  if (!FORCE_SUB_CHANNEL) return true; // kanal sozlanmagan bo'lsa — tekshirilmaydi
-  try {
-    const member = await bot.getChatMember(FORCE_SUB_CHANNEL, uid);
-    return !['left', 'kicked'].includes(member.status);
-  } catch (e) {
-    console.error('Obuna tekshiruvi xato:', e.message);
-    // Bot kanalda admin bo'lmasa yoki kanal topilmasa — xavfsizlik uchun ruxsat bermaymiz
-    return false;
-  }
-}
-
-function forceSubKeyboard() {
-  const username = FORCE_SUB_CHANNEL.replace('@', '');
-  return { inline_keyboard: [
-    [{ text: '📢 Kanalga obuna bo\'lish', url: `https://t.me/${username}` }],
-    [{ text: '✅ Obunani tekshirish', callback_data: 'check_sub' }]
-  ]};
-}
-
-async function sendForceSubMessage(chatId) {
-  await bot.sendMessage(chatId,
-    `🚫 <b>Botdan foydalanish uchun avval kanalga obuna bo\'ling!</b>\n\n` +
-    `${FORCE_SUB_CHANNEL} kanaliga obuna bo\'ling, so\'ng <b>"✅ Obunani tekshirish"</b> tugmasini bosing.`,
-    { parse_mode: 'HTML', reply_markup: forceSubKeyboard() }
-  );
-}
-
-// ========================
 // KEYBOARDS
 // ========================
-function mainMenu() {
-  return { inline_keyboard: [
-    [{ text: '🎮 PUBG — UC', callback_data: 'buy_uc' }, { text: '⭐ PUBG — Popularity', callback_data: 'buy_popularity' }],
-    [{ text: '🔥 Free Fire — Diamond', callback_data: 'buy_diamond' }, { text: '⚔️ Clash of Clans — Gems', callback_data: 'buy_gems' }],
-    [{ text: '🌟 Mobile Legends — Diamond', callback_data: 'buy_mlbb' }, { text: '🟥 Roblox — Robux', callback_data: 'buy_robux' }],
-    [{ text: '💰 Hisobni to\'ldirish', callback_data: 'topup_menu' }, { text: '👤 Mening hisobim', callback_data: 'my_account' }],
-    [{ text: '📋 Buyurtmalarim', callback_data: 'my_orders' }, { text: '📞 Yordam', callback_data: 'support' }]
-  ]};
-}
-
-// Pastki (doimiy) menyu — Telegramning "Reply Keyboard"i.
-// Bu inline tugmalardan farqli o'laroq, xabar pufakchasi ichida emas,
-// balki yozish maydonchasi ostida doim ko'rinib turadi.
 const CATEGORY_BUTTONS = {
   '🎮 PUBG — UC': 'uc',
   '⭐ PUBG — Popularity': 'popularity',
@@ -276,10 +229,11 @@ const CATEGORY_BUTTONS = {
   '🌟 Mobile Legends — Diamond': 'mlbb',
   '🟥 Roblox — Robux': 'robux'
 };
-const TOPUP_BUTTON = '💰 Hisobni to\'ldirish';
-const ACCOUNT_BUTTON = '👤 Mening hisobim';
-const ORDERS_BUTTON = '📋 Buyurtmalarim';
-const SUPPORT_BUTTON = '📞 Yordam';
+const TOPUP_BUTTON    = '💰 Hisobni to\'ldirish';
+const ACCOUNT_BUTTON  = '👤 Mening hisobim';
+const ORDERS_BUTTON   = '📋 Buyurtmalarim';
+const SUPPORT_BUTTON  = '📞 Yordam';
+const BULLDROP_BUTTON = '🎁 Bulldrop';
 
 function mainReplyKeyboard() {
   return {
@@ -288,7 +242,8 @@ function mainReplyKeyboard() {
       ['🔥 Free Fire — Diamond', '⚔️ Clash of Clans — Gems'],
       ['🌟 Mobile Legends — Diamond', '🟥 Roblox — Robux'],
       [TOPUP_BUTTON, ACCOUNT_BUTTON],
-      [ORDERS_BUTTON, SUPPORT_BUTTON]
+      [ORDERS_BUTTON, BULLDROP_BUTTON],
+      [SUPPORT_BUTTON]
     ],
     resize_keyboard: true,
     is_persistent: true
@@ -316,15 +271,18 @@ function topupMenu() {
   ]};
 }
 
-function backBtn() { return { inline_keyboard: [[{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }]] }; }
-function cancelBtn() { return { inline_keyboard: [[{ text: '❌ Bekor qilish', callback_data: 'main_menu' }]] }; }
-function confirmBtn(pid) { return { inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: 'confirm_' + pid }, { text: '❌ Bekor', callback_data: 'main_menu' }]] }; }
+function backBtn()         { return { inline_keyboard: [[{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }]] }; }
+function cancelBtn()       { return { inline_keyboard: [[{ text: '❌ Bekor qilish', callback_data: 'main_menu' }]] }; }
+function confirmBtn(pid)   { return { inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: 'confirm_' + pid }, { text: '❌ Bekor', callback_data: 'main_menu' }]] }; }
 function adminTopupBtn(id) { return { inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: 'adm_approve_' + id }, { text: '❌ Rad etish', callback_data: 'adm_reject_' + id }]] }; }
 function adminOrderBtn(id) { return { inline_keyboard: [[{ text: '✅ Bajarildi', callback_data: 'adm_done_' + id }, { text: '❌ Bekor', callback_data: 'adm_cancel_' + id }]] }; }
+
 function adminPanel() {
   return { inline_keyboard: [
-    [{ text: '📊 Statistika', callback_data: 'adm_stats' }, { text: '⏳ Kutayotgan to\'ldirish', callback_data: 'adm_topups' }],
-    [{ text: '📦 Buyurtmalar', callback_data: 'adm_orders' }, { text: '📢 Xabar yuborish', callback_data: 'adm_broadcast' }]
+    [{ text: '📊 Statistika', callback_data: 'adm_stats' }],
+    [{ text: '⏳ Kutayotgan to\'ldirish', callback_data: 'adm_topups' }, { text: '📦 Buyurtmalar', callback_data: 'adm_orders' }],
+    [{ text: '💳 Balans berish', callback_data: 'adm_give_balance' }, { text: '👥 Foydalanuvchilar', callback_data: 'adm_users' }],
+    [{ text: '📢 Xabar yuborish', callback_data: 'adm_broadcast' }]
   ]};
 }
 
@@ -365,16 +323,25 @@ async function sendStartMenu(chatId, from) {
 }
 
 bot.onText(/\/start/, async (msg) => {
-  const { id: chatId, from } = msg;
-  clearState(from.id);
-  const subscribed = await isUserSubscribed(from.id);
-  if (!subscribed) return sendForceSubMessage(chatId);
-  await sendStartMenu(chatId, from);
+  clearState(msg.from.id);
+  await sendStartMenu(msg.chat.id, msg.from);
 });
 
+// ========================
+// ADMIN COMMANDS
+// ========================
 bot.onText(/\/admin/, async (msg) => {
-  if (!isAdmin(msg.from.id)) return;
-  await bot.sendMessage(msg.chat.id, '⚙️ <b>Admin Panel</b>', { parse_mode: 'HTML', reply_markup: adminPanel() });
+  if (!isAdmin(msg.from.id)) return bot.sendMessage(msg.chat.id, '❌ Ruxsat yo\'q!');
+  const s = getStats();
+  await bot.sendMessage(msg.chat.id,
+    `⚙️ <b>Admin Panel</b>\n\n` +
+    `👥 Foydalanuvchilar: <b>${s.users}</b>\n` +
+    `📦 Bajarilgan buyurtmalar: <b>${s.orders}</b>\n` +
+    `💰 Umumiy daromad: <b>${fmt(s.revenue)}</b>\n\n` +
+    `⏳ Kutayotgan to\'ldirish: <b>${s.pendingTopups}</b>\n` +
+    `🔄 Kutayotgan buyurtma: <b>${s.pendingOrders}</b>`,
+    { parse_mode: 'HTML', reply_markup: adminPanel() }
+  );
 });
 
 // ========================
@@ -385,27 +352,14 @@ bot.on('callback_query', async (query) => {
   const uid = from.id;
   const chatId = message.chat.id;
   const msgId = message.message_id;
-  if (data !== 'check_sub') await bot.answerCallbackQuery(query.id);
+  await bot.answerCallbackQuery(query.id);
 
   try {
-    // MAJBURIY OBUNA TEKSHIRISH
-    if (data === 'check_sub') {
-      const subscribed = await isUserSubscribed(uid);
-      if (subscribed) {
-        await bot.answerCallbackQuery(query.id, { text: '✅ Obuna tasdiqlandi!' });
-        try { await bot.deleteMessage(chatId, msgId); } catch {}
-        await sendStartMenu(chatId, from);
-      } else {
-        await bot.answerCallbackQuery(query.id, { text: '❌ Siz hali obuna bo\'lmagansiz!', show_alert: true });
-      }
-    }
-
     // MAIN MENU
-    else if (data === 'main_menu') {
+    if (data === 'main_menu') {
       clearState(uid);
-      const bal = getBalance(uid);
       await bot.editMessageText(
-        `🎮 <b>Game Shop</b>\n\n💰 Balansingiz: <b>${fmt(bal)}</b>\n\n👇 Pastdagi menyudan tanlang`,
+        `🎮 <b>Game Shop</b>\n\n👇 Pastdagi menyudan tanlang`,
         { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } }
       );
     }
@@ -438,13 +392,9 @@ bot.on('callback_query', async (query) => {
           }
         );
       } else {
-        // Roblox uchun maxsus
-        let idText = '';
-        if (product.type === 'robux') {
-          idText = `👤 Roblox <b>akkaunt nikingizni</b> yuboring:\n\n⚠️ Faqat username (masalan: <code>MrCool123</code>)`;
-        } else {
-          idText = `🆔 <b>${g.idLabel}</b> yuboring:`;
-        }
+        let idText = product.type === 'robux'
+          ? `👤 Roblox <b>akkaunt nikingizni</b> yuboring:\n\n⚠️ Faqat username (masalan: <code>MrCool123</code>)`
+          : `🆔 <b>${g.idLabel}</b> yuboring:`;
         await bot.editMessageText(
           `${g.emoji} <b>${product.name}</b>\n\n💰 Narx: <b>${fmt(product.price)}</b>\n💳 Balans: <b>${fmt(bal)}</b>\n\n📝 ${idText}`,
           { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: cancelBtn() }
@@ -469,13 +419,9 @@ bot.on('callback_query', async (query) => {
       clearState(uid);
       const newBal = getBalance(uid);
 
-      // Roblox uchun maxsus xabar
-      let orderDetails = '';
-      if (product.type === 'robux') {
-        orderDetails = `👤 Roblox Nik: <b>${state.gameId}</b>`;
-      } else {
-        orderDetails = `🆔 ID: <b>${state.gameId}</b>\n👤 Nik: <b>${state.gameNick || '-'}</b>`;
-      }
+      let orderDetails = product.type === 'robux'
+        ? `👤 Roblox Nik: <b>${state.gameId}</b>`
+        : `🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick || '-'}</b>`;
 
       await bot.editMessageText(
         `✅ <b>Buyurtma qabul qilindi!</b>\n\n` +
@@ -488,11 +434,9 @@ bot.on('callback_query', async (query) => {
       const fromUser = from.username ? `@${from.username}` : from.first_name;
       for (const adminId of ADMIN_IDS) {
         let adminMsg = `🛒 <b>Yangi buyurtma #${orderId}</b>\n\n👤 ${fromUser} (${uid})\n${g.emoji} <b>${g.name} — ${product.name}</b>\n`;
-        if (product.type === 'robux') {
-          adminMsg += `👤 Roblox Nik: <code>${state.gameId}</code>\n`;
-        } else {
-          adminMsg += `🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick || '-'}</b>\n`;
-        }
+        adminMsg += product.type === 'robux'
+          ? `👤 Roblox Nik: <code>${state.gameId}</code>\n`
+          : `🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick || '-'}</b>\n`;
         adminMsg += `💰 <b>${fmt(product.price)}</b>`;
         await bot.sendMessage(adminId, adminMsg, { parse_mode: 'HTML', reply_markup: adminOrderBtn(orderId) });
       }
@@ -521,8 +465,7 @@ bot.on('callback_query', async (query) => {
 
     // MENING HISOBIM
     else if (data === 'my_account') {
-      const user = getUser(uid);
-      if (!user) return;
+      const user = getOrCreateUser(uid, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
       const txs = getLastTransactions(uid);
       let txText = txs.length ? '\n\n📋 <b>So\'nggi operatsiyalar:</b>\n' + txs.map(t => `${t.amount > 0 ? '+' : ''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n') : '';
       await bot.editMessageText(
@@ -554,8 +497,75 @@ bot.on('callback_query', async (query) => {
     }
 
     // ========================
-    // ADMIN
+    // ADMIN PANEL
     // ========================
+    else if (data === 'adm_stats' && isAdmin(uid)) {
+      const s = getStats();
+      await bot.editMessageText(
+        `📊 <b>Statistika</b>\n\n` +
+        `👥 Foydalanuvchilar: <b>${s.users}</b>\n` +
+        `📦 Bajarilgan: <b>${s.orders}</b>\n` +
+        `💰 Daromad: <b>${fmt(s.revenue)}</b>\n\n` +
+        `⏳ Kutayotgan to\'ldirish: <b>${s.pendingTopups}</b>\n` +
+        `🔄 Kutayotgan buyurtma: <b>${s.pendingOrders}</b>`,
+        { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() }
+      );
+    }
+
+    else if (data === 'adm_topups' && isAdmin(uid)) {
+      const reqs = getPendingTopups();
+      if (!reqs.length) return bot.editMessageText('✅ Kutayotgan to\'ldirish yo\'q.', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
+      await bot.editMessageText(`⏳ <b>${reqs.length} ta kutayotgan to\'ldirish</b>`, { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
+      for (const req of reqs) {
+        const user = getUser(req.telegram_id);
+        const name = user?.username ? `@${user.username}` : (user?.full_name || `ID: ${req.telegram_id}`);
+        const cap = `💰 <b>To\'ldirish #${req.id}</b>\n👤 ${name} (${req.telegram_id})\n💰 <b>${fmt(req.amount)}</b>`;
+        try {
+          if (req.receipt_type === 'photo') await bot.sendPhoto(chatId, req.receipt_file_id, { caption: cap, parse_mode: 'HTML', reply_markup: adminTopupBtn(req.id) });
+          else await bot.sendDocument(chatId, req.receipt_file_id, { caption: cap, parse_mode: 'HTML', reply_markup: adminTopupBtn(req.id) });
+        } catch { await bot.sendMessage(chatId, cap + '\n⚠️ Chek yuklanmagan.', { parse_mode: 'HTML', reply_markup: adminTopupBtn(req.id) }); }
+      }
+    }
+
+    else if (data === 'adm_orders' && isAdmin(uid)) {
+      const orders = getAllOrders();
+      if (!orders.length) return bot.editMessageText('📦 Buyurtmalar yo\'q.', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
+      let text = `📦 <b>So\'nggi buyurtmalar:</b>\n\n`;
+      orders.forEach(o => {
+        const s = o.status === 'completed' ? '✅' : o.status === 'pending' ? '⏳' : '❌';
+        const g = gameInfo(o.product_type);
+        text += `${s} #${o.id} ${g.emoji} ${o.product_name} — <code>${o.game_id}</code>\n`;
+      });
+      await bot.editMessageText(text, { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Admin', callback_data: 'adm_stats' }]] } });
+    }
+
+    else if (data === 'adm_users' && isAdmin(uid)) {
+      const users = getAllUsers().slice(0, 30);
+      let text = `👥 <b>Foydalanuvchilar (${getAllUsers().length} ta):</b>\n\n`;
+      users.forEach((u, i) => {
+        const name = u.username ? `@${u.username}` : (u.full_name || 'Noma\'lum');
+        text += `${i+1}. ${name} — <b>${fmt(u.balance)}</b>\n`;
+      });
+      await bot.editMessageText(text, { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Admin', callback_data: 'adm_stats' }]] } });
+    }
+
+    else if (data === 'adm_give_balance' && isAdmin(uid)) {
+      setState(uid, { step: 'adm_give_balance' });
+      await bot.sendMessage(chatId,
+        `💳 <b>Balans berish</b>\n\n` +
+        `Quyidagi formatda yozing:\n` +
+        `<code>ID MIQDOR</code>\n\n` +
+        `Masalan: <code>123456789 50000</code>`,
+        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '❌ Bekor', callback_data: 'adm_stats' }]] } }
+      );
+    }
+
+    else if (data === 'adm_broadcast' && isAdmin(uid)) {
+      setState(uid, { step: 'adm_broadcast' });
+      await bot.sendMessage(chatId, `📢 Barcha foydalanuvchilarga yuboriladigan xabar matnini yozing:`,
+        { reply_markup: { inline_keyboard: [[{ text: '❌ Bekor', callback_data: 'adm_stats' }]] } });
+    }
+
     else if (data.startsWith('adm_approve_') && isAdmin(uid)) {
       const reqId = parseInt(data.replace('adm_approve_', ''));
       const req = approveTopup(reqId, uid);
@@ -582,11 +592,9 @@ bot.on('callback_query', async (query) => {
       await bot.editMessageText(message.text + '\n\n✅ <b>BAJARILDI</b>', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML' });
       const g = gameInfo(order.product_type);
       let doneMsg = `✅ <b>Buyurtmangiz bajarildi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${order.product_name}</b>\n`;
-      if (order.product_type === 'robux') {
-        doneMsg += `👤 Roblox Nik: <b>${order.game_id}</b>\n`;
-      } else {
-        doneMsg += `🆔 ID: <code>${order.game_id}</code>\n`;
-      }
+      doneMsg += order.product_type === 'robux'
+        ? `👤 Roblox Nik: <b>${order.game_id}</b>\n`
+        : `🆔 ID: <code>${order.game_id}</code>\n`;
       doneMsg += `\nO\'yiningizni tekshiring! 🎮\nRahmat! ❤️`;
       await bot.sendMessage(order.telegram_id, doneMsg, { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() });
     }
@@ -602,46 +610,6 @@ bot.on('callback_query', async (query) => {
         `⚠️ <b>Buyurtma bekor qilindi</b>\n\n📦 #${orderId}\n💰 Pul qaytarildi: <b>${fmt(order.price)}</b>`,
         { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }
       );
-    }
-
-    else if (data === 'adm_stats' && isAdmin(uid)) {
-      const s = getStats();
-      await bot.editMessageText(
-        `📊 <b>Statistika</b>\n\n👥 Foydalanuvchilar: <b>${s.users}</b>\n📦 Bajarilgan: <b>${s.orders}</b>\n💰 Daromad: <b>${fmt(s.revenue)}</b>\n\n⏳ Kutayotgan to\'ldirish: <b>${s.pendingTopups}</b>\n🔄 Kutayotgan buyurtma: <b>${s.pendingOrders}</b>`,
-        { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() }
-      );
-    }
-
-    else if (data === 'adm_topups' && isAdmin(uid)) {
-      const reqs = getPendingTopups();
-      if (!reqs.length) return bot.editMessageText('✅ Kutayotgan to\'ldirish yo\'q.', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
-      await bot.editMessageText(`⏳ <b>${reqs.length} ta kutayotgan</b>`, { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
-      for (const req of reqs) {
-        const user = getUser(req.telegram_id);
-        const name = user?.username ? `@${user.username}` : (user?.full_name || `ID: ${req.telegram_id}`);
-        const cap = `💰 <b>To\'ldirish #${req.id}</b>\n👤 ${name} (${req.telegram_id})\n💰 <b>${fmt(req.amount)}</b>`;
-        try {
-          if (req.receipt_type === 'photo') await bot.sendPhoto(chatId, req.receipt_file_id, { caption: cap, parse_mode: 'HTML', reply_markup: adminTopupBtn(req.id) });
-          else await bot.sendDocument(chatId, req.receipt_file_id, { caption: cap, parse_mode: 'HTML', reply_markup: adminTopupBtn(req.id) });
-        } catch { await bot.sendMessage(chatId, cap + '\n⚠️ Chek yuklanmagan.', { parse_mode: 'HTML', reply_markup: adminTopupBtn(req.id) }); }
-      }
-    }
-
-    else if (data === 'adm_orders' && isAdmin(uid)) {
-      const orders = getAllOrders();
-      if (!orders.length) return bot.editMessageText('📦 Buyurtmalar yo\'q.', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: adminPanel() });
-      let text = `📦 <b>So\'nggi buyurtmalar:</b>\n\n`;
-      orders.forEach(o => {
-        const s = o.status === 'completed' ? '✅' : o.status === 'pending' ? '⏳' : '❌';
-        const g = gameInfo(o.product_type);
-        text += `${s} #${o.id} ${g.emoji} ${o.product_name} — ${o.game_id}\n`;
-      });
-      await bot.editMessageText(text, { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Admin', callback_data: 'adm_stats' }]] } });
-    }
-
-    else if (data === 'adm_broadcast' && isAdmin(uid)) {
-      setState(uid, { step: 'adm_broadcast' });
-      await bot.sendMessage(chatId, `📢 Xabar matnini yozing:`);
     }
 
   } catch (err) {
@@ -683,10 +651,11 @@ bot.on('message', async (msg) => {
 
   if (text === ACCOUNT_BUTTON) {
     clearState(uid);
-    const user = getUser(uid);
-    if (!user) return;
+    const user = getOrCreateUser(uid, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
     const txs = getLastTransactions(uid);
-    let txText = txs.length ? '\n\n📋 <b>So\'nggi operatsiyalar:</b>\n' + txs.map(t => `${t.amount > 0 ? '+' : ''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n') : '';
+    let txText = txs.length
+      ? '\n\n📋 <b>So\'nggi operatsiyalar:</b>\n' + txs.map(t => `${t.amount > 0 ? '+' : ''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n')
+      : '';
     return bot.sendMessage(chatId,
       `👤 <b>Mening hisobim</b>\n\n🆔 ID: <code>${uid}</code>\n👤 Ism: <b>${user.full_name || 'Noma\'lum'}</b>\n💰 Balans: <b>${fmt(user.balance)}</b>\n💸 Jami sarflangan: <b>${fmt(user.total_spent)}</b>` + txText,
       { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '💰 To\'ldirish', callback_data: 'topup_menu' }]] } }
@@ -706,6 +675,22 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, ordersText, { parse_mode: 'HTML' });
   }
 
+  // 🎁 BULLDROP
+  if (text === BULLDROP_BUTTON) {
+    clearState(uid);
+    return bot.sendMessage(chatId,
+      `🎁 <b>Bulldrop</b>\n\n` +
+      `Assalomu alaykum! Siz bu kanalda promolar olishingiz mumkin 🎉\n\n` +
+      `🔥 Chegirmalar, promo kodlar va maxsus takliflar!`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[{ text: '🚀 Kirish', url: 'https://t.me/sjjsanbfsahbfa' }]]
+        }
+      }
+    );
+  }
+
   if (text === SUPPORT_BUTTON) {
     clearState(uid);
     return bot.sendMessage(chatId,
@@ -721,7 +706,6 @@ bot.on('message', async (msg) => {
       const product = getProductById(state.selectedProduct);
       if (!product) return;
 
-      // Roblox — faqat nik
       if (product.type === 'robux') {
         const nik = text.trim();
         if (nik.length < 3 || nik.length > 20) return bot.sendMessage(chatId, '❌ Roblox nik 3-20 ta belgidan iborat bo\'lishi kerak!');
@@ -733,13 +717,11 @@ bot.on('message', async (msg) => {
         );
       }
 
-      // CoC — tag
       let cleanId = text.trim().replace(/\s+/g, '');
       if (product.type === 'gems') {
         if (!cleanId.startsWith('#')) cleanId = '#' + cleanId;
         setState(uid, { gameId: cleanId, step: 'enter_nick' });
       } else {
-        // PUBG, FF, MLBB — faqat raqam
         if (!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId, `❌ Faqat raqamlar kiriting!\nMasalan: <code>512345678</code>`, { parse_mode: 'HTML' });
         if (cleanId.length > 15) return bot.sendMessage(chatId, `❌ ID maksimum 15 ta raqam!`);
         setState(uid, { gameId: cleanId, step: 'enter_nick' });
@@ -803,6 +785,24 @@ bot.on('message', async (msg) => {
       }
     }
 
+    // ADMIN: BALANS BERISH
+    else if (state.step === 'adm_give_balance' && isAdmin(uid)) {
+      if (!text) return;
+      const parts = text.trim().split(/\s+/);
+      if (parts.length < 2) return bot.sendMessage(chatId, '❌ Format: <code>ID MIQDOR</code>', { parse_mode: 'HTML' });
+      const targetId = parseInt(parts[0]);
+      const amount = parseInt(parts[1]);
+      if (isNaN(targetId) || isNaN(amount) || amount <= 0) return bot.sendMessage(chatId, '❌ Noto\'g\'ri format!');
+      const targetUser = getUser(targetId);
+      if (!targetUser) return bot.sendMessage(chatId, `❌ Foydalanuvchi topilmadi: ${targetId}`);
+      addBalance(targetId, amount, 'Admin tomonidan qo\'shildi');
+      clearState(uid);
+      const newBal = getBalance(targetId);
+      const tName = targetUser.username ? `@${targetUser.username}` : (targetUser.full_name || `ID: ${targetId}`);
+      await bot.sendMessage(chatId, `✅ ${tName} ga <b>${fmt(amount)}</b> qo\'shildi.\nYangi balans: <b>${fmt(newBal)}</b>`, { parse_mode: 'HTML' });
+      await bot.sendMessage(targetId, `💳 <b>Hisobingizga ${fmt(amount)} qo\'shildi!</b>\n\nYangi balans: <b>${fmt(newBal)}</b>`, { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }).catch(()=>{});
+    }
+
     // ADMIN: RAD ETISH SABABI
     else if (state.step === 'adm_reject' && isAdmin(uid)) {
       const req = rejectTopup(state.rejectId, uid, text);
@@ -831,9 +831,8 @@ bot.on('message', async (msg) => {
 
     // NOMA'LUM
     else if (text && !state.step) {
-      const bal = getBalance(uid);
       await bot.sendMessage(chatId,
-        `🎮 <b>Game Shop</b>\n\n💰 Balansingiz: <b>${fmt(bal)}</b>\n\nO\'yin tanlang:`,
+        `🎮 <b>Game Shop</b>\n\n👇 Pastdagi menyudan tanlang:`,
         { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }
       );
     }
