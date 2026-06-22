@@ -13,6 +13,9 @@ const ADMIN_IDS   = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(
 const GEMINI_KEY  = process.env.GEMINI_API_KEY;
 const PORT        = process.env.PORT || 3000;
 
+// Majburiy obuna kanali
+const REQUIRED_CHANNEL = '@bulldrop_n1';
+
 if (!BOT_TOKEN) { console.error('❌ BOT_TOKEN topilmadi!'); process.exit(1); }
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
@@ -36,6 +39,21 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const DEFAULT_DB = {
   users: {}, orders: [], topup_requests: [], transactions: [],
   next_order_id: 1, next_topup_id: 1,
+  // Promokodlar: { "KOD": { discount: 10, type: 'percent', usedBy: [], maxUse: 0 } }
+  // type: 'percent' (foiz) | 'fixed' (soʼm)
+  // maxUse: 0 = cheksiz
+  promoCodes: {
+    "BULLDROP10": { discount: 10, type: 'percent', usedBy: [], maxUse: 0, description: '10% chegirma' },
+    "BULLDROP20": { discount: 20, type: 'percent', usedBy: [], maxUse: 0, description: '20% chegirma' },
+    "BULLDROP5":  { discount: 5,  type: 'percent', usedBy: [], maxUse: 0, description: '5% chegirma' },
+    "SAVE50000":  { discount: 50000, type: 'fixed', usedBy: [], maxUse: 0, description: "50,000 so'm chegirma" },
+    "SALE30":     { discount: 30, type: 'percent', usedBy: [], maxUse: 0, description: '30% chegirma' },
+    "MEGA15":     { discount: 15, type: 'percent', usedBy: [], maxUse: 0, description: '15% chegirma' },
+    "VIP25":      { discount: 25, type: 'percent', usedBy: [], maxUse: 0, description: '25% chegirma' },
+    "BONUS100K":  { discount: 100000, type: 'fixed', usedBy: [], maxUse: 0, description: "100,000 so'm chegirma" },
+    "GAME10":     { discount: 10, type: 'percent', usedBy: [], maxUse: 0, description: '10% chegirma' },
+    "SHOP20":     { discount: 20, type: 'percent', usedBy: [], maxUse: 0, description: '20% chegirma' }
+  },
   products: {
     uc: [
       { id: 1, type: 'uc', name: '60 UC', price: 15000 },
@@ -92,6 +110,7 @@ function loadDB() {
       for (const key of Object.keys(DEFAULT_DB.products)) {
         if (!data.products[key]) data.products[key] = DEFAULT_DB.products[key];
       }
+      if (!data.promoCodes) data.promoCodes = DEFAULT_DB.promoCodes;
       return data;
     }
   } catch (e) {}
@@ -162,10 +181,15 @@ function rejectTopup(id, adminId, reason) {
   saveDB(data); return req;
 }
 
-function createOrder(telegramId, type, name, price, gameId, gameNick) {
+function createOrder(telegramId, type, name, price, gameId, gameNick, promoCode, discount) {
   const data = loadDB();
   const id = data.next_order_id++;
-  data.orders.push({ id, telegram_id: telegramId, product_type: type, product_name: name, price, game_id: gameId, game_nick: gameNick, status: 'pending', created_at: new Date().toISOString(), completed_at: null });
+  data.orders.push({
+    id, telegram_id: telegramId, product_type: type, product_name: name,
+    price, game_id: gameId, game_nick: gameNick,
+    promo_code: promoCode || null, discount: discount || 0,
+    status: 'pending', created_at: new Date().toISOString(), completed_at: null
+  });
   saveDB(data); return id;
 }
 
@@ -206,6 +230,57 @@ function getLastTransactions(telegramId) {
 }
 
 // ========================
+// PROMOKOD FUNKSIYALARI
+// ========================
+function validatePromo(code, telegramId) {
+  const data = loadDB();
+  const promo = data.promoCodes[code.toUpperCase()];
+  if (!promo) return { valid: false, reason: 'Promokod topilmadi!' };
+  if (promo.maxUse > 0 && promo.usedBy.length >= promo.maxUse) return { valid: false, reason: 'Promokod tugagan!' };
+  if (promo.usedBy.includes(String(telegramId))) return { valid: false, reason: 'Siz bu promokodni allaqachon ishlatgansiz!' };
+  return { valid: true, promo, code: code.toUpperCase() };
+}
+
+function applyDiscount(price, promo) {
+  if (!promo) return price;
+  if (promo.type === 'percent') {
+    const disc = Math.floor(price * promo.discount / 100);
+    return Math.max(0, price - disc);
+  } else {
+    return Math.max(0, price - promo.discount);
+  }
+}
+
+function markPromoUsed(code, telegramId) {
+  const data = loadDB();
+  if (data.promoCodes[code]) {
+    data.promoCodes[code].usedBy.push(String(telegramId));
+    saveDB(data);
+  }
+}
+
+// ========================
+// MAJBURIY OBUNA TEKSHIRISH
+// ========================
+async function checkSubscription(userId) {
+  try {
+    const member = await bot.getChatMember(REQUIRED_CHANNEL, userId);
+    return ['member', 'administrator', 'creator'].includes(member.status);
+  } catch (e) {
+    return false;
+  }
+}
+
+function subscribeKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '📢 Kanalga obuna bo\'lish', url: `https://t.me/${REQUIRED_CHANNEL.replace('@', '')}` }],
+      [{ text: '✅ Obuna bo\'ldim', callback_data: 'check_subscription' }]
+    ]
+  };
+}
+
+// ========================
 // HELPERS
 // ========================
 function fmt(price) { return price.toLocaleString('uz-UZ') + ' so\'m'; }
@@ -229,17 +304,12 @@ function clearState(id) { delete userStates[id]; }
 // ========================
 // AI CHAT (Gemini)
 // ========================
-// Har bir foydalanuvchi uchun suhbat tarixi saqlanadi (xotira)
 const aiChatHistories = {};
 
 async function askGemini(uid, userMessage) {
   if (!genAI) throw new Error('GEMINI_API_KEY sozlanmagan');
-
-  // Suhbat tarixini olish yoki yangi boshlash
   if (!aiChatHistories[uid]) aiChatHistories[uid] = [];
-
   const history = aiChatHistories[uid];
-
   const model = genAI.getGenerativeModel({
     model: 'gemini-1.5-flash',
     systemInstruction:
@@ -248,20 +318,14 @@ async function askGemini(uid, userMessage) {
       'O\'yinlar, top-up, va umumiy savollarga javob bering. ' +
       'Qisqa va aniq javob bering.'
   });
-
   const chat = model.startChat({ history });
   const result = await chat.sendMessage(userMessage);
   const reply = result.response.text();
-
-  // Tarixga qo'shish (keyingi so'rovlar uchun kontekst)
   aiChatHistories[uid].push({ role: 'user',  parts: [{ text: userMessage }] });
   aiChatHistories[uid].push({ role: 'model', parts: [{ text: reply }] });
-
-  // Tarixni 20 xabarda cheklash (token limit uchun)
   if (aiChatHistories[uid].length > 20) {
     aiChatHistories[uid] = aiChatHistories[uid].slice(-20);
   }
-
   return reply;
 }
 
@@ -281,12 +345,13 @@ const CATEGORY_BUTTONS = {
   '🟥 Roblox — Robux':         'robux'
 };
 
-const TOPUP_BUTTON    = '💰 Hisobni to\'ldirish';
-const ACCOUNT_BUTTON  = '👤 Mening hisobim';
-const ORDERS_BUTTON   = '📋 Buyurtmalarim';
-const SUPPORT_BUTTON  = '📞 Yordam';
-const BULLDROP_BUTTON = '🎁 Bulldrop';
-const AI_BUTTON       = '🤖 AI bilan suhbat';
+const TOPUP_BUTTON      = '💰 Hisobni to\'ldirish';
+const ACCOUNT_BUTTON    = '👤 Mening hisobim';
+const ORDERS_BUTTON     = '📋 Buyurtmalarim';
+const SUPPORT_BUTTON    = '📞 Yordam';
+const BULLDROP_BUTTON   = '🎁 Chegirma olish';
+const PROMO_BUTTON      = '🎟️ Promokodni faollashtirish';
+const AI_BUTTON         = '🤖 AI bilan suhbat';
 
 function mainReplyKeyboard() {
   return {
@@ -296,18 +361,31 @@ function mainReplyKeyboard() {
       ['🌟 Mobile Legends — Diamond', '🟥 Roblox — Robux'],
       [TOPUP_BUTTON,   ACCOUNT_BUTTON],
       [ORDERS_BUTTON,  BULLDROP_BUTTON],
-      [AI_BUTTON,      SUPPORT_BUTTON]
+      [PROMO_BUTTON,   AI_BUTTON],
+      [SUPPORT_BUTTON]
     ],
     resize_keyboard: true,
     is_persistent: true
   };
 }
 
-function productsMenu(products) {
+function productsMenu(products, promoInfo) {
   const rows = [];
   for (let i = 0; i < products.length; i += 2) {
-    const row = [{ text: products[i].name + ' — ' + fmt(products[i].price), callback_data: 'product_' + products[i].id }];
-    if (products[i+1]) row.push({ text: products[i+1].name + ' — ' + fmt(products[i+1].price), callback_data: 'product_' + products[i+1].id });
+    const p1 = products[i];
+    const p1price = promoInfo ? applyDiscount(p1.price, promoInfo.promo) : p1.price;
+    const p1label = promoInfo
+      ? `${p1.name} — ${fmt(p1price)} 🏷️`
+      : `${p1.name} — ${fmt(p1.price)}`;
+    const row = [{ text: p1label, callback_data: 'product_' + p1.id }];
+    if (products[i+1]) {
+      const p2 = products[i+1];
+      const p2price = promoInfo ? applyDiscount(p2.price, promoInfo.promo) : p2.price;
+      const p2label = promoInfo
+        ? `${p2.name} — ${fmt(p2price)} 🏷️`
+        : `${p2.name} — ${fmt(p2.price)}`;
+      row.push({ text: p2label, callback_data: 'product_' + p2.id });
+    }
     rows.push(row);
   }
   rows.push([{ text: '🔙 Orqaga', callback_data: 'main_menu' }]);
@@ -361,6 +439,20 @@ async function sendPayment(chatId, msgId, amount, edit) {
 // ========================
 async function sendStartMenu(chatId, from) {
   getOrCreateUser(from.id, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
+
+  // Obunani tekshirish
+  const subscribed = await checkSubscription(from.id);
+  if (!subscribed) {
+    return bot.sendMessage(chatId,
+      `👋 Salom, <b>${from.first_name}</b>!\n\n` +
+      `🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n` +
+      `⚠️ <b>Botdan foydalanish uchun avval kanalimizga obuna bo\'ling:</b>\n\n` +
+      `📢 ${REQUIRED_CHANNEL}\n\n` +
+      `Obuna bo\'lgandan so\'ng ✅ tugmasini bosing!`,
+      { parse_mode: 'HTML', reply_markup: subscribeKeyboard() }
+    );
+  }
+
   await bot.sendMessage(chatId,
     `👋 Salom, <b>${from.first_name}</b>!\n\n` +
     `🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n` +
@@ -369,6 +461,8 @@ async function sendStartMenu(chatId, from) {
     `⚔️ Clash of Clans — Gems\n` +
     `🌟 Mobile Legends — Diamond\n` +
     `🟥 Roblox — Robux\n\n` +
+    `🎁 <b>Chegirma olish</b> — chegirma promokodlari web saytimizda!\n` +
+    `🎟️ <b>Promokodni faollashtirish</b> — chegirmani qo\'llash\n\n` +
     `💳 To\'lov admin orqali tasdiqlanadi.\n` +
     `⚡ Tez va ishonchli yetkazib berish!\n\n` +
     `👇 Pastdagi menyudan tanlang:`,
@@ -376,9 +470,26 @@ async function sendStartMenu(chatId, from) {
   );
 }
 
+// ========================
+// OBUNA TEKSHIRISH MIDDLEWARE
+// ========================
+async function requireSubscription(chatId, userId, firstName) {
+  const subscribed = await checkSubscription(userId);
+  if (!subscribed) {
+    await bot.sendMessage(chatId,
+      `⚠️ <b>Avval kanalimizga obuna bo\'ling!</b>\n\n` +
+      `📢 ${REQUIRED_CHANNEL}\n\n` +
+      `Obuna bo\'lgandan so\'ng ✅ tugmasini bosing yoki /start yozing.`,
+      { parse_mode: 'HTML', reply_markup: subscribeKeyboard() }
+    );
+    return false;
+  }
+  return true;
+}
+
 bot.onText(/\/start/, async (msg) => {
   clearState(msg.from.id);
-  delete aiChatHistories[msg.from.id]; // AI tarixini tozalash
+  delete aiChatHistories[msg.from.id];
   await sendStartMenu(msg.chat.id, msg.from);
 });
 
@@ -407,6 +518,32 @@ bot.on('callback_query', async (query) => {
   await bot.answerCallbackQuery(query.id);
 
   try {
+
+    // OBUNA TEKSHIRISH (tugma bosilganda)
+    if (data === 'check_subscription') {
+      const subscribed = await checkSubscription(uid);
+      if (subscribed) {
+        await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msgId });
+        return sendStartMenu(chatId, from);
+      } else {
+        return bot.answerCallbackQuery(query.id, {
+          text: '❌ Siz hali obuna bo\'lmagansiz! Avval obuna bo\'ling.',
+          show_alert: true
+        });
+      }
+    }
+
+    // OBUNA KERAK — boshqa barcha tugmalar
+    if (!isAdmin(uid)) {
+      const subscribed = await checkSubscription(uid);
+      if (!subscribed) {
+        return bot.sendMessage(chatId,
+          `⚠️ <b>Avval kanalimizga obuna bo\'ling!</b>\n\n📢 ${REQUIRED_CHANNEL}`,
+          { parse_mode: 'HTML', reply_markup: subscribeKeyboard() }
+        );
+      }
+    }
+
     // AI CHATDAN CHIQISH
     if (data === 'exit_ai') {
       clearState(uid);
@@ -432,9 +569,13 @@ bot.on('callback_query', async (query) => {
       const type     = data.replace('buy_', '');
       const g        = gameInfo(type);
       const products = getProducts(type);
+      const state    = getState(uid);
+      const promoInfo = state.activePromo || null;
+      let promoText = '';
+      if (promoInfo) promoText = `\n\n🏷️ <b>Promokod: ${promoInfo.code}</b> — ${promoInfo.promo.description}`;
       await bot.editMessageText(
-        `${g.emoji} <b>${g.name} — ${g.currency}</b>\n\nPaket tanlang:`,
-        { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: productsMenu(products) }
+        `${g.emoji} <b>${g.name} — ${g.currency}</b>\n\nPaket tanlang:${promoText}`,
+        { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: productsMenu(products, promoInfo) }
       );
     }
 
@@ -443,13 +584,20 @@ bot.on('callback_query', async (query) => {
       const pid     = parseInt(data.split('_')[1]);
       const product = getProductById(pid);
       if (!product) return;
+      const state = getState(uid);
+      const promoInfo = state.activePromo || null;
+      const finalPrice = promoInfo ? applyDiscount(product.price, promoInfo.promo) : product.price;
       const bal = getBalance(uid);
       const g   = gameInfo(product.type);
       setState(uid, { selectedProduct: pid, step: 'enter_id' });
 
-      if (bal < product.price) {
+      let priceText = promoInfo
+        ? `💰 Narx: <s>${fmt(product.price)}</s> → <b>${fmt(finalPrice)}</b> 🏷️\n🎟️ Promokod: <b>${promoInfo.code}</b>`
+        : `💰 Narx: <b>${fmt(product.price)}</b>`;
+
+      if (bal < finalPrice) {
         await bot.editMessageText(
-          `${g.emoji} <b>${product.name}</b>\n\n💰 Narx: <b>${fmt(product.price)}</b>\n💳 Balans: <b>${fmt(bal)}</b>\n\n⚠️ <b>Balans yetarli emas!</b>\nYetishmaydi: <b>${fmt(product.price - bal)}</b>`,
+          `${g.emoji} <b>${product.name}</b>\n\n${priceText}\n💳 Balans: <b>${fmt(bal)}</b>\n\n⚠️ <b>Balans yetarli emas!</b>\nYetishmaydi: <b>${fmt(finalPrice - bal)}</b>`,
           { chat_id: chatId, message_id: msgId, parse_mode: 'HTML',
             reply_markup: { inline_keyboard: [
               [{ text: '💰 Hisobni to\'ldirish', callback_data: 'topup_menu' }],
@@ -462,7 +610,7 @@ bot.on('callback_query', async (query) => {
           ? `👤 Roblox <b>akkaunt nikingizni</b> yuboring:\n\n⚠️ Faqat username (masalan: <code>MrCool123</code>)`
           : `🆔 <b>${g.idLabel}</b> yuboring:`;
         await bot.editMessageText(
-          `${g.emoji} <b>${product.name}</b>\n\n💰 Narx: <b>${fmt(product.price)}</b>\n💳 Balans: <b>${fmt(bal)}</b>\n\n📝 ${idText}`,
+          `${g.emoji} <b>${product.name}</b>\n\n${priceText}\n💳 Balans: <b>${fmt(bal)}</b>\n\n📝 ${idText}`,
           { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: cancelBtn() }
         );
       }
@@ -475,13 +623,24 @@ bot.on('callback_query', async (query) => {
       const product = getProductById(pid);
       if (!product || !state.gameId) return;
 
+      const promoInfo  = state.activePromo || null;
+      const finalPrice = promoInfo ? applyDiscount(product.price, promoInfo.promo) : product.price;
+      const discount   = product.price - finalPrice;
+
       const g        = gameInfo(product.type);
-      const deducted = deductBalance(uid, product.price, product.name + ' xaridi');
+      const deducted = deductBalance(uid, finalPrice, product.name + ' xaridi');
       if (!deducted) {
         return bot.editMessageText('❌ Balans yetarli emas!', { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: backBtn() });
       }
 
-      const orderId = createOrder(uid, product.type, product.name, product.price, state.gameId, state.gameNick || '-');
+      // Promokodni ishlatilgan deb belgilash
+      if (promoInfo) {
+        markPromoUsed(promoInfo.code, uid);
+        // Holatdan promokodni o'chirish (bir marta ishlatiladi)
+        setState(uid, { activePromo: null });
+      }
+
+      const orderId = createOrder(uid, product.type, product.name, finalPrice, state.gameId, state.gameNick || '-', promoInfo?.code, discount);
       clearState(uid);
       const newBal = getBalance(uid);
 
@@ -489,10 +648,13 @@ bot.on('callback_query', async (query) => {
         ? `👤 Roblox Nik: <b>${state.gameId}</b>`
         : `🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick || '-'}</b>`;
 
+      let promoLine = '';
+      if (promoInfo) promoLine = `\n🏷️ Promokod: <b>${promoInfo.code}</b> (−${fmt(discount)})`;
+
       await bot.editMessageText(
         `✅ <b>Buyurtma qabul qilindi!</b>\n\n` +
         `📦 #${orderId}\n${g.emoji} ${g.name}: <b>${product.name}</b>\n${orderDetails}\n` +
-        `💰 To\'langan: <b>${fmt(product.price)}</b>\n💳 Qolgan: <b>${fmt(newBal)}</b>\n\n` +
+        `💰 To\'langan: <b>${fmt(finalPrice)}</b>${promoLine}\n💳 Qolgan: <b>${fmt(newBal)}</b>\n\n` +
         `⏳ <b>Admin tasdig\'ini kuting (5-15 daqiqa)</b>`,
         { chat_id: chatId, message_id: msgId, parse_mode: 'HTML', reply_markup: backBtn() }
       );
@@ -503,7 +665,8 @@ bot.on('callback_query', async (query) => {
         adminMsg += product.type === 'robux'
           ? `👤 Roblox Nik: <code>${state.gameId}</code>\n`
           : `🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick || '-'}</b>\n`;
-        adminMsg += `💰 <b>${fmt(product.price)}</b>`;
+        adminMsg += `💰 <b>${fmt(finalPrice)}</b>`;
+        if (promoInfo) adminMsg += `\n🏷️ Promokod: ${promoInfo.code} (−${fmt(discount)})`;
         await bot.sendMessage(adminId, adminMsg, { parse_mode: 'HTML', reply_markup: adminOrderBtn(orderId) });
       }
     }
@@ -692,12 +855,24 @@ bot.on('message', async (msg) => {
   const state  = getState(uid);
   if (text && text.startsWith('/') && text !== '/start') return;
 
+  // Admin emas bo'lsa obunani tekshirish
+  if (!isAdmin(uid)) {
+    // /start dan tashqari barcha xabarlarda tekshirish
+    const subscribed = await checkSubscription(uid);
+    if (!subscribed) {
+      return bot.sendMessage(chatId,
+        `⚠️ <b>Avval kanalimizga obuna bo\'ling!</b>\n\n📢 ${REQUIRED_CHANNEL}`,
+        { parse_mode: 'HTML', reply_markup: subscribeKeyboard() }
+      );
+    }
+  }
+
   // ========================
   // 🤖 AI BILAN SUHBAT
   // ========================
   if (text === AI_BUTTON) {
     clearState(uid);
-    delete aiChatHistories[uid]; // yangi suhbat boshlash
+    delete aiChatHistories[uid];
 
     if (!genAI) {
       return bot.sendMessage(chatId,
@@ -722,11 +897,8 @@ bot.on('message', async (msg) => {
   // AI CHAT REJIMI
   // ========================
   if (state.step === 'ai_chat') {
-    if (!text) return; // rasmlar va fayllarni ignore qilish
-
-    // "yozmoqda..." ko'rsatish
+    if (!text) return;
     await bot.sendChatAction(chatId, 'typing');
-
     try {
       const reply = await askGemini(uid, text);
       return bot.sendMessage(chatId, reply, { parse_mode: 'HTML', reply_markup: exitAiBtn() });
@@ -740,6 +912,52 @@ bot.on('message', async (msg) => {
   }
 
   // ========================
+  // 🎁 CHEGIRMA OLISH (web sayt)
+  // ========================
+  if (text === BULLDROP_BUTTON) {
+    clearState(uid);
+    return bot.sendMessage(chatId,
+      `🎁 <b>Chegirma olish</b>\n\n` +
+      `Barcha o\'yinlar uchun chegirma promokodlarini web saytimizdan oling!\n\n` +
+      `🌐 <b>Web saytimiz:</b>\n👇 Quyidagi tugmani bosing\n\n` +
+      `💡 Promokod olgach, <b>"🎟️ Promokodni faollashtirish"</b> tugmasini bosib kiring\n\n` +
+      `🏷️ <b>Chegirmalar:</b> 5%, 10%, 15%, 20%, 25%, 30% va boshqalar\n` +
+      `🎮 UC, Diamond, Gems, Robux va barchasi uchun ishlaydi!`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🌐 Web saytga kirish', url: 'https://mukxabek-prog.github.io/autouc.html/' }
+          ]]
+        }
+      }
+    );
+  }
+
+  // ========================
+  // 🎟️ PROMOKODNI FAOLLASHTIRISH
+  // ========================
+  if (text === PROMO_BUTTON) {
+    clearState(uid);
+    setState(uid, { step: 'enter_promo' });
+    return bot.sendMessage(chatId,
+      `🎟️ <b>Promokodni faollashtirish</b>\n\n` +
+      `Promokodingizni yozing:\n\n` +
+      `💡 Promokodlarni <b>web saytimizdan</b> olishingiz mumkin:\n` +
+      `🌐 https://mukxabek-prog.github.io/autouc.html/`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🌐 Web sayt', url: 'https://mukxabek-prog.github.io/autouc.html/' }],
+            [{ text: '❌ Bekor', callback_data: 'main_menu' }]
+          ]
+        }
+      }
+    );
+  }
+
+  // ========================
   // PASTKI MENYU TUGMALARI
   // ========================
   if (text && CATEGORY_BUTTONS[text]) {
@@ -747,9 +965,12 @@ bot.on('message', async (msg) => {
     const type     = CATEGORY_BUTTONS[text];
     const g        = gameInfo(type);
     const products = getProducts(type);
+    // Agar aktiv promo bo'lsa
+    const promoInfo = getState(uid).activePromo || null;
+    let promoText = promoInfo ? `\n\n🏷️ <b>Aktiv promokod: ${promoInfo.code}</b> — ${promoInfo.promo.description}` : '';
     return bot.sendMessage(chatId,
-      `${g.emoji} <b>${g.name} — ${g.currency}</b>\n\nPaket tanlang:`,
-      { parse_mode: 'HTML', reply_markup: productsMenu(products) }
+      `${g.emoji} <b>${g.name} — ${g.currency}</b>\n\nPaket tanlang:${promoText}`,
+      { parse_mode: 'HTML', reply_markup: productsMenu(products, promoInfo) }
     );
   }
 
@@ -787,14 +1008,6 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, ordersText, { parse_mode: 'HTML' });
   }
 
-  if (text === BULLDROP_BUTTON) {
-    clearState(uid);
-    return bot.sendMessage(chatId,
-      `🎁 <b>Bulldrop</b>\n\nAssalomu alaykum! Siz bu kanalda promolar olishingiz mumkin 🎉\n\n🔥 Chegirmalar, promo kodlar va maxsus takliflar!`,
-      { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🚀 Kirish', url: 'https://t.me/sjjsanbfsahbfa' }]] } }
-    );
-  }
-
   if (text === SUPPORT_BUTTON) {
     clearState(uid);
     return bot.sendMessage(chatId,
@@ -804,6 +1017,38 @@ bot.on('message', async (msg) => {
   }
 
   try {
+    // ========================
+    // PROMOKOD KIRITISH
+    // ========================
+    if (state.step === 'enter_promo') {
+      if (!text) return bot.sendMessage(chatId, '⚠️ Promokod yozing!');
+      const result = validatePromo(text.trim(), uid);
+      if (!result.valid) {
+        return bot.sendMessage(chatId,
+          `❌ <b>${result.reason}</b>\n\nQayta urinib ko\'ring yoki web saytdan yangi kod oling:\n🌐 https://mukxabek-prog.github.io/autouc.html/`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🌐 Web sayt', url: 'https://mukxabek-prog.github.io/autouc.html/' }],
+                [{ text: '❌ Bekor', callback_data: 'main_menu' }]
+              ]
+            }
+          }
+        );
+      }
+      // Promokodni holatga saqlash
+      setState(uid, { activePromo: { code: result.code, promo: result.promo }, step: null });
+      return bot.sendMessage(chatId,
+        `✅ <b>Promokod faollashtirildi!</b>\n\n` +
+        `🎟️ Kod: <b>${result.code}</b>\n` +
+        `🏷️ Chegirma: <b>${result.promo.description}</b>\n\n` +
+        `Endi xohlagan o\'yinni tanlang va chegirma avtomatik qo\'llaniladi!\n` +
+        `⚠️ Promokod faqat keyingi <b>1 ta xarid</b> uchun ishlaydi.`,
+        { parse_mode: 'HTML', reply_markup: mainReplyKeyboard() }
+      );
+    }
+
     // GAME ID
     if (state.step === 'enter_id') {
       if (!text) return bot.sendMessage(chatId, '⚠️ Matn kiriting!');
@@ -815,8 +1060,13 @@ bot.on('message', async (msg) => {
         if (nik.length < 3 || nik.length > 20) return bot.sendMessage(chatId, '❌ Roblox nik 3-20 ta belgidan iborat bo\'lishi kerak!');
         setState(uid, { gameId: nik, step: 'confirm_robux' });
         const g = gameInfo(product.type);
+        const promoInfo = state.activePromo || null;
+        const finalPrice = promoInfo ? applyDiscount(product.price, promoInfo.promo) : product.price;
+        let priceText = promoInfo
+          ? `💰 Narx: <s>${fmt(product.price)}</s> → <b>${fmt(finalPrice)}</b> 🏷️`
+          : `💰 Narx: <b>${fmt(product.price)}</b>`;
         return bot.sendMessage(chatId,
-          `📋 <b>Buyurtma ma\'lumotlari:</b>\n\n${g.emoji} <b>${g.name} — ${product.name}</b>\n👤 Roblox Nik: <b>${nik}</b>\n💰 Narx: <b>${fmt(product.price)}</b>\n\nTasdiqlaysizmi?`,
+          `📋 <b>Buyurtma ma\'lumotlari:</b>\n\n${g.emoji} <b>${g.name} — ${product.name}</b>\n👤 Roblox Nik: <b>${nik}</b>\n${priceText}\n\nTasdiqlaysizmi?`,
           { parse_mode: 'HTML', reply_markup: confirmBtn(state.selectedProduct) }
         );
       }
@@ -840,9 +1090,14 @@ bot.on('message', async (msg) => {
       const product = getProductById(state.selectedProduct);
       if (!product) return;
       const g = gameInfo(product.type);
+      const promoInfo = state.activePromo || null;
+      const finalPrice = promoInfo ? applyDiscount(product.price, promoInfo.promo) : product.price;
+      let priceText = promoInfo
+        ? `💰 Narx: <s>${fmt(product.price)}</s> → <b>${fmt(finalPrice)}</b> 🏷️\n🎟️ Promokod: <b>${promoInfo.code}</b>`
+        : `💰 Narx: <b>${fmt(product.price)}</b>`;
       setState(uid, { gameNick: nik, step: 'confirm' });
       await bot.sendMessage(chatId,
-        `📋 <b>Buyurtma ma\'lumotlari:</b>\n\n${g.emoji} <b>${g.name} — ${product.name}</b>\n🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${nik}</b>\n💰 Narx: <b>${fmt(product.price)}</b>\n\nTasdiqlaysizmi?`,
+        `📋 <b>Buyurtma ma\'lumotlari:</b>\n\n${g.emoji} <b>${g.name} — ${product.name}</b>\n🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${nik}</b>\n${priceText}\n\nTasdiqlaysizmi?`,
         { parse_mode: 'HTML', reply_markup: confirmBtn(state.selectedProduct) }
       );
     }
