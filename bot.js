@@ -34,8 +34,8 @@ const DEFAULT_DB = {
   users: {}, orders: [], topup_requests: [], transactions: [],
   next_order_id: 1, next_topup_id: 1, promocodes: {},
   products: {
-    uc:         [ {id:1,type:'uc',name:'60 UC',price:12,500},{id:2,type:'uc',name:'325 UC',price:60.000},{id:3,type:'uc',name:'660 UC',price:120.000},{id:4,type:'uc',name:'1800 UC',price:290.000},{id:5,type:'uc',name:'3850 UC',price:640.000},{id:6,type:'uc',name:'8100 UC',price:1.130.000} ],
-    popularity: [ {id:7,type:'PP',name:'20k Pp',price:20.000},{id:8,type:'Pp',name:'50k Pp',price:50.000},{id:9,type:'Pp',name:'100k Pp',price:90.000},{id:10,type:'Pp',name:'150k Pp',price:140.000} ],
+    uc:         [ {id:1,type:'uc',name:'60 UC',price:12500},{id:2,type:'uc',name:'325 UC',price:60000},{id:3,type:'uc',name:'660 UC',price:120000},{id:4,type:'uc',name:'1800 UC',price:290000},{id:5,type:'uc',name:'3850 UC',price:575000},{id:6,type:'uc',name:'8100 UC',price:1130000},{id:34,type:'uc',name:'16200 UC',price:2265000},{id:35,type:'uc',name:'24300 UC',price:3400000},{id:36,type:'uc',name:'32400 UC',price:4550000},{id:37,type:'uc',name:'40500 UC',price:5770000} ],
+    popularity: [ {id:7,type:'popularity',name:'20K PP',price:20000},{id:8,type:'popularity',name:'50K PP',price:50000},{id:9,type:'popularity',name:'100K PP',price:90000},{id:10,type:'popularity',name:'150K PP',price:140000},{id:38,type:'popularity',name:'200K PP',price:185000} ],
     diamond:    [ {id:11,type:'diamond',name:'100 Diamond',price:18000},{id:12,type:'diamond',name:'310 Diamond',price:52000},{id:13,type:'diamond',name:'520 Diamond',price:85000},{id:14,type:'diamond',name:'1060 Diamond',price:165000},{id:15,type:'diamond',name:'2180 Diamond',price:330000},{id:16,type:'diamond',name:'5600 Diamond',price:820000} ],
     gems:       [ {id:17,type:'gems',name:'80 Gems',price:12000},{id:18,type:'gems',name:'500 Gems',price:65000},{id:19,type:'gems',name:'1200 Gems',price:150000},{id:20,type:'gems',name:'2500 Gems',price:300000},{id:21,type:'gems',name:'6500 Gems',price:750000},{id:22,type:'gems',name:'14000 Gems',price:1500000} ],
     mlbb:       [ {id:23,type:'mlbb',name:'86 Diamonds',price:20000},{id:24,type:'mlbb',name:'172 Diamonds',price:38000},{id:25,type:'mlbb',name:'257 Diamonds',price:55000},{id:26,type:'mlbb',name:'706 Diamonds',price:145000},{id:27,type:'mlbb',name:'1412 Diamonds',price:280000},{id:28,type:'mlbb',name:'2195 Diamonds',price:420000} ],
@@ -179,7 +179,7 @@ function clearState(id)  { delete userStates[id]; }
 function gameInfo(type) {
   return {
     uc:        {name:'PUBG Mobile',   emoji:'🎮',currency:'UC',       idLabel:'PUBG ID (faqat raqam, max 15)'},
-    popularity:{name:'PUBG Mobile',   emoji:'⭐',currency:'PP',idLabel:'PUBG ID (faqat raqam, max 15)'},
+    popularity:{name:'PUBG Mobile',   emoji:'⭐',currency:'Popularity',idLabel:'PUBG ID (faqat raqam, max 15)'},
     diamond:   {name:'Free Fire',     emoji:'🔥',currency:'Diamond',  idLabel:'Free Fire ID (faqat raqam)'},
     gems:      {name:'Clash of Clans',emoji:'⚔️',currency:'Gems',     idLabel:'CoC Tag (masalan: #ABC1234)'},
     mlbb:      {name:'Mobile Legends',emoji:'🌟',currency:'Diamond',  idLabel:'MLBB ID (faqat raqam)'},
@@ -209,7 +209,7 @@ async function askGemini(uid, msg) {
 // ========================
 const CAT_BTNS = {
   '🎮 PUBG — UC':               'uc',
-  '⭐ PUBG — PP':       'Pp',
+  '⭐ PUBG — Popularity':       'popularity',
   '🔥 Free Fire — Diamond':     'diamond',
   '⚔️ Clash of Clans — Gems':   'gems',
   '🌟 Mobile Legends — Diamond':'mlbb',
@@ -225,7 +225,7 @@ const BTN_AI      = '🤖 AI bilan suhbat';
 function mainKeyboard() {
   return {
     keyboard:[
-      ['🎮 PUBG — UC',           '⭐ PUBG — PP'],
+      ['🎮 PUBG — UC',           '⭐ PUBG — Popularity'],
       ['🔥 Free Fire — Diamond', '⚔️ Clash of Clans — Gems'],
       ['🌟 Mobile Legends — Diamond','🟥 Roblox — Robux'],
       [BTN_TOPUP,  BTN_ACCOUNT],
@@ -272,7 +272,7 @@ function adminMenu() {
 // TO'LOV
 // ========================
 async function sendPayment(chatId, msgId, amount, edit) {
-  const text=`💰 <b>To\'ldirish: ${fmt(amount)}</b>\n\n1️⃣ Quyidagi kartaga pul o\'tkazing:\n🏦 <code>9860 1606 2989 6350</code>\n👤 <b>Qoshaqboyev.i</b>\n\n2️⃣ Miqdor: <b>${fmt(amount)}</b>\n\n3️⃣ To\'lovdan so\'ng <b>chek (screenshot)</b> yuboring\n\n✅ Admin tasdiqlashidan so\'ng balans qo\'shiladi!`;
+  const text=`💰 <b>To\'ldirish: ${fmt(amount)}</b>\n\n1️⃣ Quyidagi kartaga pul o\'tkazing:\n🏦 <code>9860 1606 2989 6350</code>\n👤 <b>Qoshaqboyev.M</b>\n\n2️⃣ Miqdor: <b>${fmt(amount)}</b>\n\n3️⃣ To\'lovdan so\'ng <b>chek (screenshot)</b> yuboring\n\n✅ Admin tasdiqlashidan so\'ng balans qo\'shiladi!`;
   const opts={parse_mode:'HTML',reply_markup:cancelBtn()};
   if(edit&&msgId) await bot.editMessageText(text,{chat_id:chatId,message_id:msgId,...opts});
   else await bot.sendMessage(chatId,text,opts);
@@ -284,7 +284,7 @@ async function sendPayment(chatId, msgId, amount, edit) {
 async function sendStart(chatId, from) {
   getOrCreateUser(from.id,from.username,[from.first_name,from.last_name].filter(Boolean).join(' '));
   await bot.sendMessage(chatId,
-    `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & PP\n🔥 Free Fire — Diamond\n⚔️ Clash of Clans — Gems\n🌟 Mobile Legends — Diamond\n🟥 Roblox — Robux\n\n💳 To\'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`,
+    `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & Popularity\n🔥 Free Fire — Diamond\n⚔️ Clash of Clans — Gems\n🌟 Mobile Legends — Diamond\n🟥 Roblox — Robux\n\n💳 To\'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`,
     {parse_mode:'HTML',reply_markup:mainKeyboard()}
   );
 }
@@ -510,7 +510,7 @@ bot.on('callback_query', async (query) => {
     if(data==='adm_add_promo'&&isAdmin(uid)) {
       setState(uid,{step:'adm_add_promo'});
       return bot.sendMessage(chatId,
-        `🎟 <b>Yangi promokod qo\'shish</b>\n\nFormat: <code>KOD FOIZ TURLAR MAX</code>\n\nMisollar:\n<code>YOZI10 10 all 0</code> — barchasi, 10%, cheksiz\n<code>UC5 5 uc 100</code> — faqat UC, 5%, max 100\n<code>GAME7 7 uc,diamond 50</code> — UC va Diamond, 7%\n\n📌 Foiz: 1-10 oralig\'ida\n📌 Turlar: <code>all</code>, <code>uc</code>, <code>popularity</code>, <code>diamond</code>, <code>gems</code>, <code>mlbb</code>, <code>robux</code>\n📌 MAX=0 — cheksiz`,
+        `🎟 <b>Yangi promokod qo\'shish</b>\n\nFormat: <code>KOD FOIZ TURLAR MAX</code>\n\nMisollar:\n<code>YOZI10 10 all 0</code> — barchasi, 10%, cheksiz\n<code>UC5 5 uc 100</code> — faqat UC, 5%, max 100\n<code>GAME7 7 uc,mlbb 50</code> — UC va MLBB, 7%\n\n📌 Foiz: 1-99 oralig\'ida\n📌 Turlar: <code>all</code>, <code>uc</code>, <code>popularity</code>, <code>diamond</code>, <code>gems</code>, <code>mlbb</code>, <code>robux</code>\n📌 MAX=0 — cheksiz\n\n💡 Promo tanlangan o\'yinga (uc, mlbb va h.k.) qo\'llanadi, chegirma narxdan foizda hisoblanadi`,
         {parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_promos'}]]}}
       );
     }
@@ -643,7 +643,7 @@ bot.on('message', async (msg) => {
   // YORDAM
   if(text===BTN_SUPPORT) {
     clearState(uid);
-    return bot.sendMessage(chatId,`📞 <b>Yordam</b>\n\n👨‍💼 Admin: @ismiljo_n\n⏰ Ish vaqti: 24:7 \n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,{parse_mode:'HTML'});
+    return bot.sendMessage(chatId,`📞 <b>Yordam</b>\n\n👨‍💼 Admin: @ismoiljo_n\n⏰ Ish vaqti: 09:00 - 22:00\n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,{parse_mode:'HTML'});
   }
 
   try {
@@ -768,7 +768,7 @@ bot.on('message', async (msg) => {
       const discount=parseInt(parts[1]);
       const types=parts[2].split(',').map(t=>t.trim().toLowerCase());
       const maxUses=parseInt(parts[3]||'0');
-      if(isNaN(discount)||discount<1||discount>10) return bot.sendMessage(chatId,'❌ Chegirma 1-10 foiz oralig\'ida!');
+      if(isNaN(discount)||discount<1||discount>99) return bot.sendMessage(chatId,'❌ Chegirma 1-99 foiz oralig\'ida!');
       const validTypes=['all','uc','popularity','diamond','gems','mlbb','robux'];
       const bad=types.find(t=>!validTypes.includes(t));
       if(bad) return bot.sendMessage(chatId,`❌ Noto\'g\'ri tur: ${bad}\nRuxsat: ${validTypes.join(', ')}`);
