@@ -121,13 +121,11 @@ function getStats() {
 }
 
 // PROMOKODLAR
-function createPromo(code, discount, type, productName, productId, maxUses) {
+function createPromo(code, amount, maxUses) {
   const d=loadDB(); const k=code.toUpperCase();
   d.promocodes[k]={
-    code:k, discount,
-    type: type,
-    productName: productName,
-    productId: productId||null,
+    code:k,
+    amount: amount,
     maxUses: maxUses||1,
     usedBy:[],
     created_at:new Date().toISOString(),
@@ -142,22 +140,13 @@ function markPromoUsed(code, tid) {
   const d=loadDB(); const k=code.toUpperCase();
   if(d.promocodes[k]) { d.promocodes[k].usedBy.push(String(tid)); saveDB(d); }
 }
-function checkPromo(code, tid, productType, productId) {
+function checkPromo(code, tid) {
   const promo=getPromo(code);
-  if(!promo)              return {ok:false,msg:'❌ Promokod topilmadi!'};
-  if(!promo.is_active)    return {ok:false,msg:'❌ Promokod faol emas!'};
-  if(promo.usedBy.length>=promo.maxUses) return {ok:false,msg:'❌ Promokod tugagan! (limit toldi)'};
+  if(!promo)           return {ok:false,msg:'❌ Promokod topilmadi!'};
+  if(!promo.is_active) return {ok:false,msg:'❌ Promokod faol emas!'};
+  if(promo.usedBy.length>=promo.maxUses) return {ok:false,msg:'😔 Kechirasz, ulgurmadingiz! Promokod tugadi.'};
   if(promo.usedBy.map(String).includes(String(tid))) return {ok:false,msg:'❌ Siz bu promokodni allaqachon ishlatgansiz!'};
-  // O'yin turi tekshirish
-  if(productType && promo.type !== productType) {
-    const names={uc:'PUBG UC',popularity:'Popularity (PP)',diamond:'FF Diamond',gems:'CoC Gems',mlbb:'MLBB Diamond',robux:'Robux'};
-    return {ok:false,msg:`❌ Bu promokod faqat <b>${names[promo.type]||promo.type}</b> uchun!`};
-  }
-  // Aniq mahsulot tekshirish (productId berilgan bo'lsa)
-  if(promo.productId && productId && promo.productId !== productId) {
-    return {ok:false,msg:`❌ Bu promokod faqat <b>${promo.productName}</b> uchun!`};
-  }
-  return {ok:true,discount:promo.discount,promo};
+  return {ok:true,amount:promo.amount,promo};
 }
 
 // ========================
@@ -378,20 +367,8 @@ bot.on('callback_query', async (query) => {
       const g=gameInfo(product.type);
       const state=getState(uid);
 
-      // Promokod bormi?
-      let finalPrice=product.price;
-      let promoLine='';
-      if(state.activePromo) {
-        const chk=checkPromo(state.activePromo.code,uid,product.type,product.id);
-        if(chk.ok) {
-          finalPrice=Math.round(product.price*(1-chk.promo.discount/100));
-          promoLine=`\n🎟 Promokod: <b>${state.activePromo.code}</b> (-${chk.promo.discount}%)\n💸 Asl narx: <s>${fmt(product.price)}</s>\n✅ Chegirmali: <b>${fmt(finalPrice)}</b>`;
-          setState(uid,{activePromo:{code:state.activePromo.code,discount:chk.promo.discount}});
-        } else {
-          promoLine=`\n⚠️ ${chk.msg}`;
-          finalPrice=product.price;
-        }
-      }
+      // Narx
+      const finalPrice=product.price;
       setState(uid,{selectedProduct:pid,step:'enter_id',finalPrice});
 
       if(bal<finalPrice) {
@@ -417,16 +394,8 @@ bot.on('callback_query', async (query) => {
       const finalPrice=(state.finalPrice!==undefined&&state.finalPrice!==null)?state.finalPrice:product.price;
       let promoUsed=null;
 
-      if(state.activePromo) {
-        const chk=checkPromo(state.activePromo.code,uid,product.type,product.id);
-        if(chk.ok) { markPromoUsed(state.activePromo.code,uid); promoUsed=state.activePromo.code; }
-      }
-
-      let deducted=true;
-      if(finalPrice>0) {
-        deducted=deductBalance(uid,finalPrice,product.name+' xaridi');
-        if(!deducted) return bot.editMessageText('❌ Balans yetarli emas!',{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🏠 Menyu',callback_data:'back_main'}]]}});
-      }
+      const deducted=deductBalance(uid,finalPrice,product.name+' xaridi');
+      if(!deducted) return bot.editMessageText('❌ Balans yetarli emas!',{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🏠 Menyu',callback_data:'back_main'}]]}});
 
       const orderId=createOrder(uid,product.type,product.name,finalPrice,product.price,state.gameId,state.gameNick,promoUsed);
       clearState(uid);
@@ -517,11 +486,9 @@ bot.on('callback_query', async (query) => {
     if(data==='adm_promos'&&isAdmin(uid)) {
       const promos=getAllPromos();
       let text=promos.length?`🎟 <b>Promokodlar (${promos.length} ta):</b>\n\n`:'🎟 Hali promokodlar yo\'q.\n';
-      const names={uc:'PUBG UC',popularity:'PP',diamond:'FF Diamond',gems:'CoC Gems',mlbb:'MLBB',robux:'Robux'};
       promos.forEach(p=>{
-        const gameLabel=names[p.type]||p.type||'?';
         const uses=`${p.usedBy.length}/${p.maxUses}`;
-        text+=`• <code>${p.code}</code> — <b>${p.discount}%</b> | ${gameLabel}: ${p.productName||'?'} | ${uses}\n`;
+        text+=`• <code>${p.code}</code> — <b>${fmt(p.amount||0)}</b> | ${uses} ishlatilgan\n`;
       });
       return bot.editMessageText(text,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'➕ Qo\'shish',callback_data:'adm_add_promo'},{text:'🗑 O\'chirish',callback_data:'adm_del_promo'}],[{text:'🔙 Admin',callback_data:'adm_stats'}]]}});
     }
@@ -529,44 +496,31 @@ bot.on('callback_query', async (query) => {
     if(data==='adm_add_promo'&&isAdmin(uid)) {
       setState(uid,{step:'adm_promo_code',promoData:{}});
       return bot.sendMessage(chatId,
-        `🎟 <b>Yangi promokod yaratish</b>\n\n1️⃣ Promokod kodi qanday bo\'lsin?\n\n💡 Masalan: <code>TEKIN</code>, <code>UC2024</code>, <code>DOSTUM</code>`,
+        `🎟 <b>Yangi promokod yaratish</b>\n\n1️⃣ Promokod kodi qanday bo\'lsin?\n\n💡 Masalan: <code>BONUS</code>, <code>DOSTUM</code>, <code>HEDYA</code>`,
         {parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_promos'}]]}}
       );
     }
 
-    // PROMO YARATISH - O'YIN TANLASH (inline button)
-    if(data.startsWith('adm_promo_type_')&&isAdmin(uid)) {
-      const type=data.replace('adm_promo_type_','');
+    // PROMO YARATISH - MIQDOR TUGMASI
+    if(data.startsWith('adm_promo_amt_')&&isAdmin(uid)) {
+      const val=data.replace('adm_promo_amt_','');
       const state=getState(uid);
-      setState(uid,{...state,promoData:{...state.promoData,type},step:'adm_promo_product'});
-      const products=getProducts(type);
-      const names={uc:'PUBG UC',popularity:'Popularity (PP)',diamond:'FF Fire Diamond',gems:'CoC Gems',mlbb:'MLBB Diamond',robux:'Robux'};
-      const rows=products.map(p=>[{text:p.name,callback_data:`adm_promo_prod_${p.id}`}]);
-      rows.push([{text:'❌ Bekor',callback_data:'adm_promos'}]);
+      if(val==='custom') {
+        setState(uid,{...state,step:'adm_promo_amount_text'});
+        return bot.sendMessage(chatId,`✏️ Necha so\'m bonus berilsin? Raqam yozing:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_promos'}]]}});
+      }
+      const amount=parseInt(val);
+      setState(uid,{...state,promoData:{...state.promoData,amount},step:'adm_promo_maxuses'});
       return bot.sendMessage(chatId,
-        `🎮 <b>${names[type]}</b> tanlandiz\n\n3️⃣ Qaysi mahsulot uchun chegirma?`,
-        {parse_mode:'HTML',reply_markup:{inline_keyboard:rows}}
-      );
-    }
-
-    // PROMO YARATISH - MAHSULOT TANLASH
-    if(data.startsWith('adm_promo_prod_')&&isAdmin(uid)) {
-      const pid=parseInt(data.replace('adm_promo_prod_',''));
-      const product=getProductById(pid);
-      if(!product) return;
-      const state=getState(uid);
-      setState(uid,{...state,promoData:{...state.promoData,productId:pid,productName:product.name},step:'adm_promo_maxuses'});
-      return bot.sendMessage(chatId,
-        `📦 <b>${product.name}</b> tanlandiz\n\n4️⃣ Nechta odam uchun? (foydalanish limiti)\n\n💡 Masalan: <code>1</code> — 1 kishi, <code>10</code> — 10 kishi`,
+        `✅ Bonus: <b>${fmt(amount)}</b>\n\n3️⃣ Nechta odam ishlatishi mumkin?`,
         {parse_mode:'HTML',reply_markup:{inline_keyboard:[
           [{text:'1 kishi',callback_data:'adm_promo_uses_1'},{text:'5 kishi',callback_data:'adm_promo_uses_5'},{text:'10 kishi',callback_data:'adm_promo_uses_10'}],
           [{text:'50 kishi',callback_data:'adm_promo_uses_50'},{text:'100 kishi',callback_data:'adm_promo_uses_100'},{text:'✏️ Boshqa',callback_data:'adm_promo_uses_custom'}],
           [{text:'❌ Bekor',callback_data:'adm_promos'}]
-        ]}}
-      );
+        ]}});
     }
 
-    // PROMO YARATISH - FOYDALANISH LIMITI (button)
+    // PROMO YARATISH - NECHTA ODAM (button)
     if(data.startsWith('adm_promo_uses_')&&isAdmin(uid)) {
       const val=data.replace('adm_promo_uses_','');
       const state=getState(uid);
@@ -576,12 +530,10 @@ bot.on('callback_query', async (query) => {
       }
       const maxUses=parseInt(val);
       const pd=state.promoData;
-      // Hammasi tayyor, promo yaratish
-      createPromo(pd.code,pd.discount,pd.type,pd.productName,pd.productId,maxUses);
+      createPromo(pd.code,pd.amount,maxUses);
       clearState(uid);
-      const names={uc:'PUBG UC',popularity:'Popularity (PP)',diamond:'FF Diamond',gems:'CoC Gems',mlbb:'MLBB Diamond',robux:'Robux'};
       return bot.sendMessage(chatId,
-        `✅ <b>Promokod yaratildi!</b>\n\n🎟 Kod: <code>${pd.code}</code>\n💰 Chegirma: <b>${pd.discount}%</b>\n🎮 O\'yin: <b>${names[pd.type]||pd.type}</b>\n📦 Mahsulot: <b>${pd.productName}</b>\n👥 Limit: <b>${maxUses} ta odam</b>`,
+        `✅ <b>Promokod yaratildi!</b>\n\n🎟 Kod: <code>${pd.code}</code>\n💸 Bonus: <b>${fmt(pd.amount)}</b>\n👥 Limit: <b>${maxUses} ta odam</b>`,
         {parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🎟 Promokodlar',callback_data:'adm_promos'}]]}}
       );
     }
@@ -591,26 +543,7 @@ bot.on('callback_query', async (query) => {
       return bot.sendMessage(chatId,`🗑 O\'chirmoqchi bo\'lgan promokod kodini yozing:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_promos'}]]}});
     }
 
-    // PROMO - FOIZ TUGMASI
-    if(data.startsWith('adm_promo_disc_')&&isAdmin(uid)) {
-      const val=data.replace('adm_promo_disc_','');
-      const state=getState(uid);
-      if(val==='custom') {
-        setState(uid,{...state,step:'adm_promo_discount_text'});
-        return bot.sendMessage(chatId,`✏️ Foizni yozing (1-100):`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_promos'}]]}});
-      }
-      const discount=parseInt(val);
-      setState(uid,{...state,promoData:{...state.promoData,discount},step:'adm_promo_type'});
-      const typesBtns=[
-        [{text:'🎮 PUBG UC',callback_data:'adm_promo_type_uc'},{text:'⭐ Popularity (PP)',callback_data:'adm_promo_type_popularity'}],
-        [{text:'🔥 FF Diamond',callback_data:'adm_promo_type_diamond'},{text:'⚔️ CoC Gems',callback_data:'adm_promo_type_gems'}],
-        [{text:'🌟 MLBB Diamond',callback_data:'adm_promo_type_mlbb'},{text:'🟥 Robux',callback_data:'adm_promo_type_robux'}],
-        [{text:'❌ Bekor',callback_data:'adm_promos'}]
-      ];
-      return bot.sendMessage(chatId,
-        `✅ Chegirma: <b>${discount}%</b>\n\n3️⃣ Qaysi o\'yin uchun?`,
-        {parse_mode:'HTML',reply_markup:{inline_keyboard:typesBtns}});
-    }
+
 
     if(data==='adm_broadcast'&&isAdmin(uid)) {
       setState(uid,{step:'adm_broadcast'});
@@ -743,15 +676,16 @@ bot.on('message', async (msg) => {
     if(state.step==='enter_promo') {
       if(!text) return;
       const code=text.trim().toUpperCase();
-      const chk=checkPromo(code,uid,null,null);
-      if(!chk.ok) return bot.sendMessage(chatId,chk.msg+`\n\n💡 Promokod olish: ${CHANNEL}`,{parse_mode:'HTML'});
+      const chk=checkPromo(code,uid);
+      if(!chk.ok) return bot.sendMessage(chatId,chk.msg,{parse_mode:'HTML'});
       const p=chk.promo;
-      const names={uc:'PUBG UC',popularity:'Popularity (PP)',diamond:'FF Diamond',gems:'CoC Gems',mlbb:'MLBB Diamond',robux:'Robux'};
-      const gameLabel=names[p.type]||p.type;
-      const remaining=`\n📊 Qolgan: ${p.maxUses-p.usedBy.length} ta`;
-      setState(uid,{activePromo:{code,discount:p.discount},step:null});
+      // Promoni ishlatilgan deb belgilaymiz va pulni hisobga qo'shamiz
+      markPromoUsed(code,uid);
+      addBalance(uid,p.amount,`🎟 Promokod: ${code}`);
+      const newBal=getBalance(uid);
+      clearState(uid);
       return bot.sendMessage(chatId,
-        `✅ <b>Promokod faollashtirildi!</b>\n\n🎟 Kod: <code>${code}</code>\n💰 Chegirma: <b>${p.discount}%</b>\n🎮 Qo\'llanadi: <b>${gameLabel}</b>\n📦 Mahsulot: <b>${p.productName}</b>${remaining}\n\n🛒 ${p.productName} tanlang, chegirma avtomatik qo\'llanadi!`,
+        `🎉 <b>Promokod muvaffaqiyatli ishlatildi!</b>\n\n🎟 Kod: <code>${code}</code>\n💸 Hisobingizga qo\'shildi: <b>${fmt(p.amount)}</b>\n💳 Yangi balans: <b>${fmt(newBal)}</b>\n\n🛒 Endi xarid qilishingiz mumkin!`,
         {parse_mode:'HTML',reply_markup:mainKeyboard()}
       );
     }
@@ -852,52 +786,49 @@ bot.on('message', async (msg) => {
       await bot.sendMessage(targetId,`💳 <b>Hisobingizga ${fmt(amount)} qo\'shildi!</b>\n\nYangi balans: <b>${fmt(newBal)}</b>`,{parse_mode:'HTML',reply_markup:mainKeyboard()}).catch(()=>{});
     }
 
-    // ADMIN: PROMO - KOD KIRITISH (1-qadam)
+    // ADMIN: PROMO - 1-QADAM: KOD
     if(state.step==='adm_promo_code'&&isAdmin(uid)) {
       if(!text) return;
       const code=text.trim().toUpperCase().replace(/\s+/g,'');
       if(code.length<2||code.length>20) return bot.sendMessage(chatId,'❌ Kod 2-20 belgi bo\'lishi kerak!');
       if(getPromo(code)) return bot.sendMessage(chatId,`❌ <b>${code}</b> allaqachon mavjud! Boshqa kod yozing:`,{parse_mode:'HTML'});
-      setState(uid,{step:'adm_promo_discount',promoData:{code}});
+      setState(uid,{step:'adm_promo_amount',promoData:{code}});
       return bot.sendMessage(chatId,
-        `✅ Kod: <code>${code}</code>\n\n2️⃣ Necha foiz chegirma? (1-100)\n\n💡 Masalan: <code>100</code> — tekin, <code>50</code> — yarmi bepul, <code>10</code> — 10% arzon`,
+        `✅ Kod: <code>${code}</code>\n\n2️⃣ Necha so\'m bonus berilsin?\n\n💡 Masalan: <code>2000</code>, <code>5000</code>, <code>10000</code>`,
         {parse_mode:'HTML',reply_markup:{inline_keyboard:[
-          [{text:'10%',callback_data:'adm_promo_disc_10'},{text:'20%',callback_data:'adm_promo_disc_20'},{text:'50%',callback_data:'adm_promo_disc_50'}],
-          [{text:'100% (tekin)',callback_data:'adm_promo_disc_100'},{text:'✏️ Boshqa',callback_data:'adm_promo_disc_custom'}],
+          [{text:"1 000 so'm",callback_data:'adm_promo_amt_1000'},{text:"2 000 so'm",callback_data:'adm_promo_amt_2000'},{text:"5 000 so'm",callback_data:'adm_promo_amt_5000'}],
+          [{text:"10 000 so'm",callback_data:'adm_promo_amt_10000'},{text:"50 000 so'm",callback_data:'adm_promo_amt_50000'},{text:'✏️ Boshqa',callback_data:'adm_promo_amt_custom'}],
           [{text:'❌ Bekor',callback_data:'adm_promos'}]
         ]}});
     }
 
-    // ADMIN: PROMO - FOIZ KIRITISH (matn bilan)
-    if(state.step==='adm_promo_discount_text'&&isAdmin(uid)) {
+    // ADMIN: PROMO - 2-QADAM: MIQDOR (matn bilan)
+    if(state.step==='adm_promo_amount_text'&&isAdmin(uid)) {
       if(!text) return;
-      const discount=parseInt(text.trim());
-      if(isNaN(discount)||discount<1||discount>100) return bot.sendMessage(chatId,'❌ 1 dan 100 gacha raqam kiriting!');
+      const amount=parseInt(text.trim().replace(/[\s,]/g,''));
+      if(isNaN(amount)||amount<100) return bot.sendMessage(chatId,'❌ Minimum 100 so\'m kiriting!');
       const state2=getState(uid);
-      setState(uid,{...state2,promoData:{...state2.promoData,discount},step:'adm_promo_type'});
-      const typesBtns=[
-        [{text:'🎮 PUBG UC',callback_data:'adm_promo_type_uc'},{text:'⭐ Popularity (PP)',callback_data:'adm_promo_type_popularity'}],
-        [{text:'🔥 FF Diamond',callback_data:'adm_promo_type_diamond'},{text:'⚔️ CoC Gems',callback_data:'adm_promo_type_gems'}],
-        [{text:'🌟 MLBB Diamond',callback_data:'adm_promo_type_mlbb'},{text:'🟥 Robux',callback_data:'adm_promo_type_robux'}],
-        [{text:'❌ Bekor',callback_data:'adm_promos'}]
-      ];
+      setState(uid,{...state2,promoData:{...state2.promoData,amount},step:'adm_promo_maxuses'});
       return bot.sendMessage(chatId,
-        `✅ Chegirma: <b>${discount}%</b>\n\n3️⃣ Qaysi o\'yin uchun?`,
-        {parse_mode:'HTML',reply_markup:{inline_keyboard:typesBtns}});
+        `✅ Bonus: <b>${fmt(amount)}</b>\n\n3️⃣ Nechta odam ishlatishi mumkin?`,
+        {parse_mode:'HTML',reply_markup:{inline_keyboard:[
+          [{text:'1 kishi',callback_data:'adm_promo_uses_1'},{text:'5 kishi',callback_data:'adm_promo_uses_5'},{text:'10 kishi',callback_data:'adm_promo_uses_10'}],
+          [{text:'50 kishi',callback_data:'adm_promo_uses_50'},{text:'100 kishi',callback_data:'adm_promo_uses_100'},{text:'✏️ Boshqa',callback_data:'adm_promo_uses_custom'}],
+          [{text:'❌ Bekor',callback_data:'adm_promos'}]
+        ]}});
     }
 
-    // ADMIN: PROMO - MAX USES KIRITISH (matn bilan)
+    // ADMIN: PROMO - 3-QADAM: MAX USES (matn bilan)
     if(state.step==='adm_promo_maxuses'&&isAdmin(uid)) {
       if(!text) return;
       const maxUses=parseInt(text.trim());
       if(isNaN(maxUses)||maxUses<1) return bot.sendMessage(chatId,'❌ 1 dan katta raqam kiriting!');
       const state2=getState(uid);
       const pd=state2.promoData;
-      createPromo(pd.code,pd.discount,pd.type,pd.productName,pd.productId,maxUses);
+      createPromo(pd.code,pd.amount,maxUses);
       clearState(uid);
-      const names={uc:'PUBG UC',popularity:'Popularity (PP)',diamond:'FF Diamond',gems:'CoC Gems',mlbb:'MLBB Diamond',robux:'Robux'};
       return bot.sendMessage(chatId,
-        `✅ <b>Promokod yaratildi!</b>\n\n🎟 Kod: <code>${pd.code}</code>\n💰 Chegirma: <b>${pd.discount}%</b>\n🎮 O\'yin: <b>${names[pd.type]||pd.type}</b>\n📦 Mahsulot: <b>${pd.productName}</b>\n👥 Limit: <b>${maxUses} ta odam</b>`,
+        `✅ <b>Promokod yaratildi!</b>\n\n🎟 Kod: <code>${pd.code}</code>\n💸 Bonus: <b>${fmt(pd.amount)}</b>\n👥 Limit: <b>${maxUses} ta odam</b>`,
         {parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🎟 Promokodlar',callback_data:'adm_promos'}]]}}
       );
     }
