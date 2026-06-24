@@ -33,6 +33,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const DEFAULT_DB = {
   users: {}, orders: [], topup_requests: [], transactions: [],
   next_order_id: 1, next_topup_id: 1, promocodes: {},
+  referrals: {},
   products: {
     uc:         [ {id:1,type:'uc',name:'60 UC',price:12500},{id:2,type:'uc',name:'325 UC',price:60000},{id:3,type:'uc',name:'660 UC',price:120000},{id:4,type:'uc',name:'1800 UC',price:290000},{id:5,type:'uc',name:'3850 UC',price:575000},{id:6,type:'uc',name:'8100 UC',price:1130000},{id:34,type:'uc',name:'16200 UC',price:2265000},{id:35,type:'uc',name:'24300 UC',price:3400000},{id:36,type:'uc',name:'32400 UC',price:4550000},{id:37,type:'uc',name:'40500 UC',price:5770000} ],
     popularity: [ {id:7,type:'popularity',name:'20K PP',price:20000},{id:8,type:'popularity',name:'50K PP',price:50000},{id:9,type:'popularity',name:'100K PP',price:90000},{id:10,type:'popularity',name:'150K PP',price:140000},{id:38,type:'popularity',name:'200K PP',price:185000} ],
@@ -59,8 +60,8 @@ function saveDB(d) { try { fs.writeFileSync(DB_FILE, JSON.stringify(d,null,2)); 
 // USER
 function getOrCreateUser(tid, username, fullName) {
   const d = loadDB(); const id = String(tid);
-  if (!d.users[id]) d.users[id] = { telegram_id:tid, username:username||null, full_name:fullName||null, balance:0, total_spent:0, joined_at:new Date().toISOString(), used_promos:[] };
-  else { if(username) d.users[id].username=username; if(fullName) d.users[id].full_name=fullName; if(!d.users[id].used_promos) d.users[id].used_promos=[]; }
+  if (!d.users[id]) d.users[id] = { telegram_id:tid, username:username||null, full_name:fullName||null, balance:0, total_spent:0, joined_at:new Date().toISOString(), used_promos:[], tokens:0, referred_by:null, referral_count:0 };
+  else { if(username) d.users[id].username=username; if(fullName) d.users[id].full_name=fullName; if(!d.users[id].used_promos) d.users[id].used_promos=[]; if(d.users[id].tokens===undefined) d.users[id].tokens=0; if(d.users[id].referred_by===undefined) d.users[id].referred_by=null; if(d.users[id].referral_count===undefined) d.users[id].referral_count=0; }
   saveDB(d); return d.users[id];
 }
 function getUser(tid)    { const d=loadDB(); return d.users[String(tid)]||null; }
@@ -81,6 +82,43 @@ function deductBalance(tid, amount, desc) {
   saveDB(d); return true;
 }
 function getLastTxs(tid) { return loadDB().transactions.filter(t=>t.telegram_id===tid).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,5); }
+
+// TOKENLAR
+function getTokens(tid) { const u=getUser(tid); return u?u.tokens:0; }
+function addTokens(tid, amount) {
+  const d=loadDB(); const id=String(tid); if(!d.users[id]) return;
+  d.users[id].tokens=(d.users[id].tokens||0)+amount;
+  saveDB(d);
+}
+function deductTokens(tid, amount) {
+  const d=loadDB(); const id=String(tid);
+  if(!d.users[id]||(d.users[id].tokens||0)<amount) return false;
+  d.users[id].tokens-=amount; saveDB(d); return true;
+}
+
+// REFERAL
+function getReferralLink(tid) { return `https://t.me/${process.env.BOT_USERNAME||''}?start=ref_${tid}`; }
+function processReferral(newUserId, referId) {
+  const d=loadDB(); const id=String(newUserId); const rid=String(referId);
+  if(id===rid) return; // o'z-o'ziga referral bo'lmaydi
+  if(!d.users[id]||!d.users[rid]) return;
+  if(d.users[id].referred_by) return; // allaqachon referral orqali kelgan
+  d.users[id].referred_by=rid;
+  d.users[rid].referral_count=(d.users[rid].referral_count||0)+1;
+  d.users[rid].tokens=(d.users[rid].tokens||0)+2; // har bir referral uchun 2 token
+  saveDB(d);
+  return d.users[rid];
+}
+
+// TOKEN ALMASHTIRISH NARCHLAR (har token = 1000 so'm, yoki maxsus jadval)
+const TOKEN_EXCHANGE = {
+  uc:         { rate: 5, product: '60 UC',       type: 'uc',    tokens: 5  },
+  diamond:    { rate: 5, product: '100 Diamond',  type: 'diamond', tokens: 5 },
+  popularity: { rate: 5, product: '20K PP',       type: 'popularity', tokens: 5 },
+  mlbb:       { rate: 5, product: '86 Diamonds',  type: 'mlbb',  tokens: 5  },
+  gems:       { rate: 5, product: '80 Gems',      type: 'gems',  tokens: 5  },
+  robux:      { rate: 8, product: '400 Robux',    type: 'robux', tokens: 8  },
+};
 
 // TOPUP
 function createTopupReq(tid, amount, fileId, fileType) {
@@ -224,6 +262,7 @@ const BTN_ORDERS  = '📋 Buyurtmalarim';
 const BTN_SUPPORT = '📞 Yordam';
 const BTN_PROMO   = '🎟 Promokod kiritish';
 const BTN_AI      = '🤖 AI bilan suhbat';
+const BTN_HISOB   = '💼 Hisob ishlash';
 
 function mainKeyboard() {
   return {
@@ -233,7 +272,8 @@ function mainKeyboard() {
       ['🌟 Mobile Legends — Diamond','🟥 Roblox — Robux'],
       [BTN_TOPUP,  BTN_ACCOUNT],
       [BTN_ORDERS, BTN_PROMO],
-      [BTN_AI,     BTN_SUPPORT]
+      [BTN_HISOB,  BTN_SUPPORT],
+      [BTN_AI]
     ],
     resize_keyboard:true, is_persistent:true
   };
@@ -292,12 +332,36 @@ async function sendStart(chatId, from) {
   );
 }
 
-bot.onText(/\/start/, async (msg) => {
+bot.onText(/\/start(.*)/, async (msg, match) => {
   clearState(msg.from.id);
   delete aiHistories[msg.from.id];
-  const ok = await isSubscribed(msg.from.id);
+  const from = msg.from;
+  const param = (match[1]||'').trim();
+
+  // Foydalanuvchini yaratish
+  getOrCreateUser(from.id, from.username, [from.first_name, from.last_name].filter(Boolean).join(' '));
+
+  // Referral tekshirish
+  if(param.startsWith('ref_')) {
+    const referId = parseInt(param.replace('ref_',''));
+    if(referId && referId !== from.id) {
+      const referrer = processReferral(from.id, referId);
+      if(referrer) {
+        const rName = referrer.username ? `@${referrer.username}` : (referrer.full_name || `ID: ${referId}`);
+        // Referralga xabar yuborish
+        try {
+          await bot.sendMessage(referId,
+            `🎉 <b>Yangi referral!</b>\n\n👤 ${from.first_name} siz orqali kirdi!\n🪙 Hisobingizga <b>+2 token</b> qo'shildi!\n\nJami tokenlaringiz: <b>${getTokens(referId)} token</b>`,
+            {parse_mode:'HTML'}
+          );
+        } catch(e){}
+      }
+    }
+  }
+
+  const ok = await isSubscribed(from.id);
   if(!ok) return sendSubRequired(msg.chat.id);
-  await sendStart(msg.chat.id, msg.from);
+  await sendStart(msg.chat.id, from);
 });
 
 bot.onText(/\/admin/, async (msg) => {
@@ -545,6 +609,105 @@ bot.on('callback_query', async (query) => {
 
 
 
+    // 👥 REFERRAL
+    if(data==='my_referral') {
+      const user = getUser(uid);
+      const tokens = getTokens(uid);
+      const refLink = `https://t.me/${process.env.BOT_USERNAME||'GameShopBot'}?start=ref_${uid}`;
+      const refCount = user?.referral_count||0;
+      return bot.editMessageText(
+        `👥 <b>Mening referralim</b>\n\n🔗 Sizning havolangiz:\n<code>${refLink}</code>\n\n👥 Ulashgan do'stlaringiz: <b>${refCount} ta</b>\n🪙 Har bir do'st uchun: <b>+2 token</b>\n\n💡 Havolani do'stlaringizga yuboring! Ular bot orqali kirsa siz avtomatik 2 token olasiz!`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
+          [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
+        ]}}
+      );
+    }
+
+    // 💼 HISOB ISHLASH (back)
+    if(data==='back_hisob') {
+      const tokens = getTokens(uid);
+      return bot.editMessageText(
+        `💼 <b>Hisob ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'👥 Referralim', callback_data:'my_referral'}],
+          [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
+          [{text:'🔙 Orqaga', callback_data:'back_main'}]
+        ]}}
+      );
+    }
+
+    // 🔄 TOKEN ALMASHTIRISH - o'yin tanlash
+    if(data==='token_exchange') {
+      const tokens = getTokens(uid);
+      return bot.editMessageText(
+        `🔄 <b>Tokenni almashtirish</b>\n\n🪙 Sizda: <b>${tokens} token</b>\n\n🎮 Qaysi o'yin uchun almashtirmoqchisiz?`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'🎮 PUBG — UC (5 token)', callback_data:'tex_uc'}],
+          [{text:'🔥 Free Fire — Diamond (5 token)', callback_data:'tex_diamond'}],
+          [{text:'⭐ PUBG — Popularity (5 token)', callback_data:'tex_popularity'}],
+          [{text:'🌟 Mobile Legends (5 token)', callback_data:'tex_mlbb'}],
+          [{text:'⚔️ Clash of Clans — Gems (5 token)', callback_data:'tex_gems'}],
+          [{text:'🟥 Roblox — Robux (8 token)', callback_data:'tex_robux'}],
+          [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
+        ]}}
+      );
+    }
+
+    // 🔄 TOKEN ALMASHTIRISH - o'yin tanlandi
+    if(data.startsWith('tex_')) {
+      const gameType = data.replace('tex_','');
+      const ex = TOKEN_EXCHANGE[gameType];
+      if(!ex) return;
+      const tokens = getTokens(uid);
+      const g = gameInfo(gameType);
+      if(tokens < ex.tokens) {
+        return bot.editMessageText(
+          `❌ <b>Token yetarli emas!</b>\n\n🪙 Sizda: <b>${tokens} token</b>\n💡 Kerak: <b>${ex.tokens} token</b>\n\nYetishmaydi: <b>${ex.tokens - tokens} token</b>\n\n👥 Do'stlaringizni taklif qiling, har biri uchun +2 token olasiz!`,
+          {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:'👥 Referral havolam', callback_data:'my_referral'}],
+            [{text:'🔙 Orqaga', callback_data:'token_exchange'}]
+          ]}}
+        );
+      }
+      // Token yetarli — ID so'rash
+      setState(uid, {step:'tex_enter_id', texGame:gameType, texEx:ex});
+      return bot.editMessageText(
+        `✅ <b>${g.name} — ${ex.product}</b>\n\n🪙 Narx: <b>${ex.tokens} token</b>\n💳 Sizda: <b>${tokens} token</b>\n\n📝 <b>${g.idLabel}</b> yuboring:`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'❌ Bekor', callback_data:'token_exchange'}]]}}
+      );
+    }
+
+    // 🔄 TOKEN ALMASHTIRISH — TASDIQLASH
+    if(data==='tex_confirm') {
+      const state = getState(uid);
+      const ex = state.texEx;
+      const gameType = state.texGame;
+      if(!ex||!gameType||!state.texId) return;
+      const g = gameInfo(gameType);
+      const tokens = getTokens(uid);
+      if(tokens < ex.tokens) {
+        clearState(uid);
+        return bot.editMessageText('❌ Token yetarli emas!', {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🔙 Orqaga', callback_data:'token_exchange'}]]}});
+      }
+      deductTokens(uid, ex.tokens);
+      const orderId = createOrder(uid, gameType, ex.product, 0, 0, state.texId, state.texNick||'-', null);
+      clearState(uid);
+      const newTokens = getTokens(uid);
+      const details = gameType==='robux' ? `👤 Roblox: <b>${state.texId}</b>` : `🆔 ID: <code>${state.texId}</code>\n👤 Nik: <b>${state.texNick||'-'}</b>`;
+      await bot.editMessageText(
+        `✅ <b>Token bilan buyurtma qabul qilindi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${ex.product}</b>\n${details}\n🪙 Sarflandi: <b>${ex.tokens} token</b>\n🪙 Qolgan: <b>${newTokens} token</b>\n\n⏳ Admin tasdig'ini kuting (5-15 daqiqa)`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu', callback_data:'back_main'}]]}}
+      );
+      const fromUser = from.username ? `@${from.username}` : from.first_name;
+      for(const adminId of ADMIN_IDS) {
+        let adminMsg=`🪙 <b>TOKEN buyurtma #${orderId}</b>\n\n👤 ${fromUser} (${uid})\n${g.emoji} <b>${g.name} — ${ex.product}</b>\n`;
+        adminMsg += gameType==='robux' ? `👤 Roblox: <code>${state.texId}</code>\n` : `🆔 ID: <code>${state.texId}</code>\n👤 Nik: <b>${state.texNick||'-'}</b>\n`;
+        adminMsg += `🪙 To'lov: <b>${ex.tokens} token</b> (Bepul)`;
+        await bot.sendMessage(adminId, adminMsg, {parse_mode:'HTML', reply_markup:aordBtn(orderId)}).catch(()=>{});
+      }
+    }
+
     if(data==='adm_broadcast'&&isAdmin(uid)) {
       setState(uid,{step:'adm_broadcast'});
       return bot.sendMessage(chatId,`📢 Xabar matnini yozing:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_stats'}]]}});
@@ -671,6 +834,20 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId,`📞 <b>Yordam</b>\n\n👨‍💼 Admin: @ismoiljo_n\n⏰ Ish vaqti: 09:00 - 22:00\n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,{parse_mode:'HTML'});
   }
 
+  // 💼 HISOB ISHLASH
+  if(text===BTN_HISOB) {
+    clearState(uid);
+    const tokens = getTokens(uid);
+    return bot.sendMessage(chatId,
+      `💼 <b>Hisob ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
+      {parse_mode:'HTML', reply_markup:{inline_keyboard:[
+        [{text:'👥 Referralim', callback_data:'my_referral'}],
+        [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
+        [{text:'🔙 Orqaga', callback_data:'back_main'}]
+      ]}}
+    );
+  }
+
   try {
     // PROMOKOD TEKSHIRISH
     if(state.step==='enter_promo') {
@@ -733,6 +910,50 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId,
         `📋 <b>Buyurtma ma\'lumotlari:</b>\n\n${g.emoji} <b>${g.name} — ${product.name}</b>\n🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${nik}</b>\n💰 Narx: <b>${fmt(finalPrice)}</b>${promoLine}\n\nTasdiqlaysizmi?`,
         {parse_mode:'HTML',reply_markup:confirmBtn(state.selectedProduct)}
+      );
+    }
+
+    // TOKEN ALMASHTIRISH — ID KIRITISH
+    if(state.step==='tex_enter_id') {
+      if(!text) return bot.sendMessage(chatId,'⚠️ Matn kiriting!');
+      const ex = state.texEx;
+      const gameType = state.texGame;
+      const g = gameInfo(gameType);
+      let cleanId = text.trim().replace(/\s+/g,'');
+      if(gameType==='gems') {
+        if(!cleanId.startsWith('#')) cleanId='#'+cleanId;
+      } else if(gameType==='robux') {
+        if(cleanId.length<3||cleanId.length>20) return bot.sendMessage(chatId,'❌ Roblox username 3-20 ta belgidan iborat!');
+      } else {
+        if(!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId,`❌ Faqat raqamlar kiriting!`,{parse_mode:'HTML'});
+        if(cleanId.length>15) return bot.sendMessage(chatId,'❌ ID maksimum 15 ta raqam!');
+      }
+      setState(uid, {...state, texId:cleanId, step:'tex_enter_nick'});
+      if(gameType==='robux') {
+        // Robux uchun nick shart emas, to'g'ri tasdiqlash
+        setState(uid, {...getState(uid), step:'tex_confirm'});
+        return bot.sendMessage(chatId,
+          `📋 <b>Token almashtirish:</b>\n\n${g.emoji} <b>${g.name} — ${ex.product}</b>\n👤 Username: <b>${cleanId}</b>\n🪙 Sarflanadi: <b>${ex.tokens} token</b>\n\nTasdiqlaysizmi?`,
+          {parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:'✅ Tasdiqlash', callback_data:'tex_confirm'},{text:'❌ Bekor', callback_data:'token_exchange'}]
+          ]}}
+        );
+      }
+      return bot.sendMessage(chatId,`✅ ID: <code>${cleanId}</code>\n\n👤 Endi <b>nikneymingizni</b> yozing:`,{parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'❌ Bekor', callback_data:'token_exchange'}]]}});
+    }
+
+    // TOKEN ALMASHTIRISH — NIK KIRITISH
+    if(state.step==='tex_enter_nick') {
+      if(!text||text.trim().length<2) return bot.sendMessage(chatId,'⚠️ Nikneym noto\'g\'ri!');
+      const nik = text.trim().slice(0,30);
+      const ex = state.texEx;
+      const g = gameInfo(state.texGame);
+      setState(uid, {...state, texNick:nik, step:'tex_confirm'});
+      return bot.sendMessage(chatId,
+        `📋 <b>Token almashtirish:</b>\n\n${g.emoji} <b>${g.name} — ${ex.product}</b>\n🆔 ID: <code>${state.texId}</code>\n👤 Nik: <b>${nik}</b>\n🪙 Sarflanadi: <b>${ex.tokens} token</b>\n\nTasdiqlaysizmi?`,
+        {parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'✅ Tasdiqlash', callback_data:'tex_confirm'},{text:'❌ Bekor', callback_data:'token_exchange'}]
+        ]}}
       );
     }
 
