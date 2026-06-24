@@ -504,8 +504,16 @@ bot.on('callback_query', async (query) => {
     if(data==='my_account') {
       const user=getOrCreateUser(uid,from.username,[from.first_name,from.last_name].filter(Boolean).join(' '));
       const txs=getLastTxs(uid);
+      const tokens=getTokens(uid);
       const txText=txs.length?'\n\n📋 <b>So\'nggi operatsiyalar:</b>\n'+txs.map(t=>`${t.amount>0?'+':''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n'):'';
-      return bot.editMessageText(`👤 <b>Mening hisobim</b>\n\n🆔 ID: <code>${uid}</code>\n👤 Ism: <b>${user.full_name||'Noma\'lum'}</b>\n💰 Balans: <b>${fmt(user.balance)}</b>\n💸 Jami sarflangan: <b>${fmt(user.total_spent)}</b>`+txText,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:"💰 To'ldirish",callback_data:'topup_menu'}],[{text:'🏠 Menyu',callback_data:'back_main'}]]}});
+      return bot.editMessageText(
+        `👤 <b>Mening hisobim</b>\n\n🆔 ID: <code>${uid}</code>\n👤 Ism: <b>${user.full_name||'Noma\'lum'}</b>\n💰 Balans: <b>${fmt(user.balance)}</b>\n🪙 Tokenlar: <b>${tokens} token</b>\n💸 Jami sarflangan: <b>${fmt(user.total_spent)}</b>`+txText,
+        {chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[
+          [{text:"💰 To'ldirish", callback_data:'topup_menu'}],
+          [{text:`🪙 Token sotib olish (250 so'm = 1 token)`, callback_data:'buy_token_menu'}],
+          [{text:'🏠 Menyu', callback_data:'back_main'}]
+        ]}}
+      );
     }
 
     // ========================
@@ -949,18 +957,19 @@ bot.on('message', async (msg) => {
   if(text===BTN_CYBER) {
     clearState(uid);
     const CYBER_IMG = 'AgACAgIAAxkBAAFNSYhqO8CUHq8L4kmbX0MC2ywiY7cqIgAC0h9rG_nk4UmWu7ZVuCJA9QEAAwIAA3gAAzwE';
-    const CYBER_URL = 'https://t.me/wallet'; // <-- o'yin URL ini shu yerga yozing
+    const CYBER_URL = 'https://t.me/wallet'; // <-- haqiqiy URL shu yerga
     await bot.sendPhoto(chatId, CYBER_IMG, {
       caption: `Assalmu alaykum! 👋\n\n🕹 <b>CyberDrop Game</b> ga xush kelibsiz!\n\n👇 O'yinga kirish uchun tugmani bosing:`,
       parse_mode: 'HTML',
       reply_markup: {inline_keyboard:[
-        [{text:'🎮 O\'yinga kirish', web_app:{url:CYBER_URL}}]
+        [{text:'🎮 O\'yinga kirish', url: CYBER_URL}]
       ]}
-    }).catch(async ()=>{
+    }).catch(async (e)=>{
+      console.error('CyberDrop rasm xato:', e.message);
       await bot.sendMessage(chatId,
         `Assalmu alaykum! 👋\n\n🕹 <b>CyberDrop Game</b> ga xush kelibsiz!\n\n👇 O'yinga kirish uchun tugmani bosing:`,
         {parse_mode:'HTML', reply_markup:{inline_keyboard:[
-          [{text:'🎮 O\'yinga kirish', web_app:{url:CYBER_URL}}]
+          [{text:'🎮 O\'yinga kirish', url: CYBER_URL}]
         ]}}
       );
     });
