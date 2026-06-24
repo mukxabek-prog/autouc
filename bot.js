@@ -642,6 +642,53 @@ bot.on('callback_query', async (query) => {
       );
     }
 
+    // 🪙 BALANSDAN TOKEN SOTIB OLISH
+    if(data==='buy_token_menu') {
+      const bal = getBalance(uid);
+      const maxTokens = Math.floor(bal / 250);
+      return bot.editMessageText(
+        `🪙 <b>Token sotib olish</b>\n\n💰 Balansingiz: <b>${fmt(bal)}</b>\n📌 1 token = 250 so'm\n🪙 Sotib olishingiz mumkin: <b>${maxTokens} token</b>\n\nNechta token sotib olmoqchisiz?`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'1 token (250 so\'m)', callback_data:'buytok_1'},{text:'5 token (1,250 so\'m)', callback_data:'buytok_5'}],
+          [{text:'10 token (2,500 so\'m)', callback_data:'buytok_10'},{text:'20 token (5,000 so\'m)', callback_data:'buytok_20'}],
+          [{text:'50 token (12,500 so\'m)', callback_data:'buytok_50'},{text:'100 token (25,000 so\'m)', callback_data:'buytok_100'}],
+          [{text:'✏️ Boshqa miqdor', callback_data:'buytok_custom'}],
+          [{text:'🔙 Orqaga', callback_data:'my_account'}]
+        ]}}
+      );
+    }
+
+    if(data.startsWith('buytok_')) {
+      const val = data.replace('buytok_','');
+      if(val==='custom') {
+        setState(uid,{step:'buytok_custom'});
+        return bot.sendMessage(chatId,'🪙 Nechta token sotib olmoqchisiz? Raqam yozing:',{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'buy_token_menu'}]]}});
+      }
+      const tokenCount = parseInt(val);
+      const cost = tokenCount * 250;
+      const bal = getBalance(uid);
+      if(bal < cost) {
+        return bot.editMessageText(
+          `❌ <b>Balans yetarli emas!</b>\n\n💰 Kerak: <b>${fmt(cost)}</b>\n💳 Sizda: <b>${fmt(bal)}</b>\n\nYetishmaydi: <b>${fmt(cost-bal)}</b>`,
+          {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:"💰 Hisobni to'ldirish", callback_data:'topup_menu'}],
+            [{text:'🔙 Orqaga', callback_data:'buy_token_menu'}]
+          ]}}
+        );
+      }
+      deductBalance(uid, cost, `🪙 ${tokenCount} token sotib olindi`);
+      addTokens(uid, tokenCount);
+      const newBal = getBalance(uid);
+      const newTok = getTokens(uid);
+      return bot.editMessageText(
+        `✅ <b>Muvaffaqiyatli!</b>\n\n🪙 Sotib olindi: <b>${tokenCount} token</b>\n💸 To'landi: <b>${fmt(cost)}</b>\n\n💰 Qolgan balans: <b>${fmt(newBal)}</b>\n🪙 Jami tokenlar: <b>${newTok} token</b>`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
+          [{text:'🏠 Bosh menyu', callback_data:'back_main'}]
+        ]}}
+      );
+    }
+
     // 💵 TOKEN → SO'M
     if(data==='token_to_som') {
       const tokens = getTokens(uid);
@@ -842,8 +889,15 @@ bot.on('message', async (msg) => {
     clearState(uid);
     const user=getOrCreateUser(uid,from.username,[from.first_name,from.last_name].filter(Boolean).join(' '));
     const txs=getLastTxs(uid);
+    const tokens=getTokens(uid);
     const txText=txs.length?'\n\n📋 <b>So\'nggi operatsiyalar:</b>\n'+txs.map(t=>`${t.amount>0?'+':''}${fmt(Math.abs(t.amount))} — ${t.description}`).join('\n'):'';
-    return bot.sendMessage(chatId,`👤 <b>Mening hisobim</b>\n\n🆔 ID: <code>${uid}</code>\n👤 Ism: <b>${user.full_name||'Noma\'lum'}</b>\n💰 Balans: <b>${fmt(user.balance)}</b>\n💸 Jami sarflangan: <b>${fmt(user.total_spent)}</b>`+txText,{parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:"💰 To'ldirish",callback_data:'topup_menu'}]]}});
+    return bot.sendMessage(chatId,
+      `👤 <b>Mening hisobim</b>\n\n🆔 ID: <code>${uid}</code>\n👤 Ism: <b>${user.full_name||'Noma\'lum'}</b>\n💰 Balans: <b>${fmt(user.balance)}</b>\n🪙 Tokenlar: <b>${tokens} token</b>\n💸 Jami sarflangan: <b>${fmt(user.total_spent)}</b>`+txText,
+      {parse_mode:'HTML',reply_markup:{inline_keyboard:[
+        [{text:"💰 To'ldirish", callback_data:'topup_menu'}],
+        [{text:`🪙 Token sotib olish (250 so'm = 1 token)`, callback_data:'buy_token_menu'}]
+      ]}}
+    );
   }
 
   // BUYURTMALAR
@@ -895,22 +949,21 @@ bot.on('message', async (msg) => {
   if(text===BTN_CYBER) {
     clearState(uid);
     const CYBER_IMG = 'AgACAgIAAxkBAAFNSYhqO8CUHq8L4kmbX0MC2ywiY7cqIgAC0h9rG_nk4UmWu7ZVuCJA9QEAAwIAA3gAAzwE';
-    try {
-      await bot.sendPhoto(chatId, CYBER_IMG, {
-        caption: `Assalmu alaykum! 👋\n\n🕹 <b>CyberDrop Game</b> ga xush kelibsiz!\n\n👇 O'yinga kirish uchun tugmani bosing:`,
-        parse_mode: 'HTML',
-        reply_markup: {inline_keyboard:[
-          [{text:'🎮 O\'yinga kirish', web_app:{url:'https://t.me/wallet'}}]
-        ]}
-      });
-    } catch(e) {
+    const CYBER_URL = 'https://t.me/wallet'; // <-- o'yin URL ini shu yerga yozing
+    await bot.sendPhoto(chatId, CYBER_IMG, {
+      caption: `Assalmu alaykum! 👋\n\n🕹 <b>CyberDrop Game</b> ga xush kelibsiz!\n\n👇 O'yinga kirish uchun tugmani bosing:`,
+      parse_mode: 'HTML',
+      reply_markup: {inline_keyboard:[
+        [{text:'🎮 O\'yinga kirish', web_app:{url:CYBER_URL}}]
+      ]}
+    }).catch(async ()=>{
       await bot.sendMessage(chatId,
         `Assalmu alaykum! 👋\n\n🕹 <b>CyberDrop Game</b> ga xush kelibsiz!\n\n👇 O'yinga kirish uchun tugmani bosing:`,
         {parse_mode:'HTML', reply_markup:{inline_keyboard:[
-          [{text:'🎮 O\'yinga kirish', web_app:{url:'https://t.me/wallet'}}]
+          [{text:'🎮 O\'yinga kirish', web_app:{url:CYBER_URL}}]
         ]}}
       );
-    }
+    });
     return;
   }
 
@@ -922,13 +975,14 @@ bot.on('message', async (msg) => {
       const chk=checkPromo(code,uid);
       if(!chk.ok) return bot.sendMessage(chatId,chk.msg,{parse_mode:'HTML'});
       const p=chk.promo;
-      // Promoni ishlatilgan deb belgilaymiz va pulni hisobga qo'shamiz
       markPromoUsed(code,uid);
-      addBalance(uid,p.amount,`🎟 Promokod: ${code}`);
-      const newBal=getBalance(uid);
+      // Token beradi (har 250 so'm = 1 token, yoki to'g'ridan-to'g'ri token sifatida)
+      const tokenAmount = p.amount; // admin promokod yaratganda miqdor = token soni
+      addTokens(uid, tokenAmount);
+      const newTokens=getTokens(uid);
       clearState(uid);
       return bot.sendMessage(chatId,
-        `🎉 <b>Promokod muvaffaqiyatli ishlatildi!</b>\n\n🎟 Kod: <code>${code}</code>\n💸 Hisobingizga qo\'shildi: <b>${fmt(p.amount)}</b>\n💳 Yangi balans: <b>${fmt(newBal)}</b>\n\n🛒 Endi xarid qilishingiz mumkin!`,
+        `🎉 <b>Promokod muvaffaqiyatli ishlatildi!</b>\n\n🎟 Kod: <code>${code}</code>\n🪙 Hisobingizga qo\'shildi: <b>${tokenAmount} token</b>\n🪙 Jami tokenlar: <b>${newTokens} token</b>\n\n🛒 Tokenni "Pul ishlash" bo\'limida almashtiring!`,
         {parse_mode:'HTML',reply_markup:mainKeyboard()}
       );
     }
@@ -976,6 +1030,23 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId,
         `📋 <b>Buyurtma ma\'lumotlari:</b>\n\n${g.emoji} <b>${g.name} — ${product.name}</b>\n🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${nik}</b>\n💰 Narx: <b>${fmt(finalPrice)}</b>${promoLine}\n\nTasdiqlaysizmi?`,
         {parse_mode:'HTML',reply_markup:confirmBtn(state.selectedProduct)}
+      );
+    }
+
+    // TOKEN SOTIB OLISH — BOSHQA MIQDOR
+    if(state.step==='buytok_custom') {
+      if(!text) return;
+      const tokenCount = parseInt(text.trim());
+      if(isNaN(tokenCount)||tokenCount<1) return bot.sendMessage(chatId,'❌ 1 dan katta raqam kiriting!');
+      const cost = tokenCount * 250;
+      const bal = getBalance(uid);
+      if(bal < cost) return bot.sendMessage(chatId,`❌ Balans yetarli emas!\n💰 Kerak: <b>${fmt(cost)}</b>\n💳 Sizda: <b>${fmt(bal)}</b>`,{parse_mode:'HTML'});
+      deductBalance(uid, cost, `🪙 ${tokenCount} token sotib olindi`);
+      addTokens(uid, tokenCount);
+      clearState(uid);
+      return bot.sendMessage(chatId,
+        `✅ <b>Muvaffaqiyatli!</b>\n\n🪙 Sotib olindi: <b>${tokenCount} token</b>\n💸 To'landi: <b>${fmt(cost)}</b>\n🪙 Jami tokenlar: <b>${getTokens(uid)} token</b>`,
+        {parse_mode:'HTML', reply_markup:mainKeyboard()}
       );
     }
 
