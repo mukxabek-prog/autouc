@@ -34,7 +34,7 @@ const DEFAULT_DB = {
   users: {}, orders: [], topup_requests: [], transactions: [],
   next_order_id: 1, next_topup_id: 1, promocodes: {},
   products: {
-    uc:         [ {id:1,type:'uc',name:'60 UC',price:15000},{id:2,type:'uc',name:'325 UC',price:65000},{id:3,type:'uc',name:'660 UC',price:125000},{id:4,type:'uc',name:'1800 UC',price:320000},{id:5,type:'uc',name:'3850 UC',price:640000},{id:6,type:'uc',name:'8100 UC',price:1275000} ],
+    uc:         [ {id:1,type:'uc',name:'60 UC',price:12,500},{id:2,type:'uc',name:'325 UC',price:60.000},{id:3,type:'uc',name:'660 UC',price:120.000},{id:4,type:'uc',name:'1800 UC',price:290.000},{id:5,type:'uc',name:'3850 UC',price:640.000},{id:6,type:'uc',name:'8100 UC',price:1.130.000} ],
     popularity: [ {id:7,type:'popularity',name:'100 Popularity',price:25000},{id:8,type:'popularity',name:'300 Popularity',price:70000},{id:9,type:'popularity',name:'600 Popularity',price:130000},{id:10,type:'popularity',name:'1500 Popularity',price:300000} ],
     diamond:    [ {id:11,type:'diamond',name:'100 Diamond',price:18000},{id:12,type:'diamond',name:'310 Diamond',price:52000},{id:13,type:'diamond',name:'520 Diamond',price:85000},{id:14,type:'diamond',name:'1060 Diamond',price:165000},{id:15,type:'diamond',name:'2180 Diamond',price:330000},{id:16,type:'diamond',name:'5600 Diamond',price:820000} ],
     gems:       [ {id:17,type:'gems',name:'80 Gems',price:12000},{id:18,type:'gems',name:'500 Gems',price:65000},{id:19,type:'gems',name:'1200 Gems',price:150000},{id:20,type:'gems',name:'2500 Gems',price:300000},{id:21,type:'gems',name:'6500 Gems',price:750000},{id:22,type:'gems',name:'14000 Gems',price:1500000} ],
