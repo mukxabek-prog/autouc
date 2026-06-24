@@ -263,6 +263,7 @@ const BTN_SUPPORT = '📞 Yordam';
 const BTN_PROMO   = '🎟 Promokod kiritish';
 const BTN_AI      = '🤖 AI bilan suhbat';
 const BTN_HISOB   = '💸 Pul ishlash';
+const BTN_CYBER   = '🕹 CyberDrop Game';
 
 function mainKeyboard() {
   return {
@@ -272,8 +273,8 @@ function mainKeyboard() {
       ['🌟 Mobile Legends — Diamond','🟥 Roblox — Robux'],
       [BTN_TOPUP,  BTN_ACCOUNT],
       [BTN_ORDERS, BTN_PROMO],
-      [BTN_HISOB,  BTN_SUPPORT],
-      [BTN_AI]
+      [BTN_HISOB,  BTN_CYBER],
+      [BTN_AI,     BTN_SUPPORT]
     ],
     resize_keyboard:true, is_persistent:true
   };
@@ -631,11 +632,49 @@ bot.on('callback_query', async (query) => {
     if(data==='back_hisob') {
       const tokens = getTokens(uid);
       return bot.editMessageText(
-        `💸 <b>Pul ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
+        `💸 <b>Pul ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n💵 Qiymati: <b>${fmt(tokens*250)}</b>\n\nNimani xohlaysiz?`,
         {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
           [{text:'👥 Referralim', callback_data:'my_referral'}],
-          [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
+          [{text:'🔄 Token → O\'yin', callback_data:'token_exchange'}],
+          [{text:'💵 Token → So\'m (1 token = 250 so\'m)', callback_data:'token_to_som'}],
           [{text:'🔙 Orqaga', callback_data:'back_main'}]
+        ]}}
+      );
+    }
+
+    // 💵 TOKEN → SO'M
+    if(data==='token_to_som') {
+      const tokens = getTokens(uid);
+      if(tokens < 1) {
+        return bot.editMessageText(
+          `❌ <b>Tokeningiz yo'q!</b>\n\n👥 Do'stlarni taklif qiling — har biri uchun +1 token olasiz!`,
+          {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:'👥 Referral havolam', callback_data:'my_referral'}],
+            [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
+          ]}}
+        );
+      }
+      const somQiymati = tokens * 250;
+      return bot.editMessageText(
+        `💵 <b>Token → So'm almashtirish</b>\n\n🪙 Sizda: <b>${tokens} token</b>\n💰 Qiymat: <b>${fmt(somQiymati)}</b>\n\n📌 1 token = 250 so'm\n\nHammasini hisobingizga o'tkazasizmi?`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:`✅ Ha, ${fmt(somQiymati)} olaman`, callback_data:'token_to_som_confirm'}],
+          [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
+        ]}}
+      );
+    }
+
+    if(data==='token_to_som_confirm') {
+      const tokens = getTokens(uid);
+      if(tokens < 1) return bot.editMessageText('❌ Token yo\'q!', {chat_id:chatId, message_id:msgId});
+      const somQiymati = tokens * 250;
+      deductTokens(uid, tokens);
+      addBalance(uid, somQiymati, `🪙 ${tokens} token → so'm`);
+      const newBal = getBalance(uid);
+      return bot.editMessageText(
+        `✅ <b>Muvaffaqiyatli!</b>\n\n🪙 ${tokens} token → <b>${fmt(somQiymati)}</b>\n💳 Yangi balansingiz: <b>${fmt(newBal)}</b>\n\nEndi xarid qilishingiz mumkin! 🎮`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'🛒 Xarid qilish', callback_data:'back_main'}]
         ]}}
       );
     }
@@ -837,18 +876,42 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId,`📞 <b>Yordam</b>\n\n👨‍💼 Admin: @ismoiljo_n\n⏰ Ish vaqti: 09:00 - 22:00\n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,{parse_mode:'HTML'});
   }
 
-  // 💼 HISOB ISHLASH
+  // 💼 PUL ISHLASH
   if(text===BTN_HISOB) {
     clearState(uid);
     const tokens = getTokens(uid);
     return bot.sendMessage(chatId,
-      `💸 <b>Pul ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
+      `💸 <b>Pul ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n💵 Qiymati: <b>${fmt(tokens*250)}</b>\n\nNimani xohlaysiz?`,
       {parse_mode:'HTML', reply_markup:{inline_keyboard:[
         [{text:'👥 Referralim', callback_data:'my_referral'}],
-        [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
+        [{text:'🔄 Token → O\'yin', callback_data:'token_exchange'}],
+        [{text:'💵 Token → So\'m (1 token = 250 so\'m)', callback_data:'token_to_som'}],
         [{text:'🔙 Orqaga', callback_data:'back_main'}]
       ]}}
     );
+  }
+
+  // 🕹 CYBERDROP GAME
+  if(text===BTN_CYBER) {
+    clearState(uid);
+    const CYBER_IMG = 'AgACAgIAAxkBAAFNSYhqO8CUHq8L4kmbX0MC2ywiY7cqIgAC0h9rG_nk4UmWu7ZVuCJA9QEAAwIAA3gAAzwE';
+    try {
+      await bot.sendPhoto(chatId, CYBER_IMG, {
+        caption: `Assalmu alaykum! 👋\n\n🕹 <b>CyberDrop Game</b> ga xush kelibsiz!\n\n👇 O'yinga kirish uchun tugmani bosing:`,
+        parse_mode: 'HTML',
+        reply_markup: {inline_keyboard:[
+          [{text:'🎮 O\'yinga kirish', web_app:{url:'https://t.me/wallet'}}]
+        ]}
+      });
+    } catch(e) {
+      await bot.sendMessage(chatId,
+        `Assalmu alaykum! 👋\n\n🕹 <b>CyberDrop Game</b> ga xush kelibsiz!\n\n👇 O'yinga kirish uchun tugmani bosing:`,
+        {parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'🎮 O\'yinga kirish', web_app:{url:'https://t.me/wallet'}}]
+        ]}}
+      );
+    }
+    return;
   }
 
   try {
