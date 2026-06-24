@@ -15,6 +15,9 @@ const PORT             = process.env.PORT || 3000;
 const CHANNEL          = '@bulldrop_n1';
 const CHANNEL_URL      = 'https://t.me/bulldrop_n1';
 const SITE_URL         = 'https://mukxabek-prog.github.io/autouc.html/';
+const CYBERDROP_PHOTO_ID = 'AgACAgIAAxkBAAFNTm5qO-9IhN1DPIgayIm_ZEzNiCbOOgAClCFrG-kE4UlUtpxTskjDlQEAAwIAA3gAAzwE';
+// ⚠️ Bu yerga o'zingizning o'yin/sayt havolangizni qo'ying:
+const CYBERDROP_URL    = 'https://example.com/CHANGE_ME';
 
 if (!BOT_TOKEN) { console.error('❌ BOT_TOKEN topilmadi!'); process.exit(1); }
 
@@ -669,7 +672,7 @@ bot.on('callback_query', async (query) => {
         {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
           [{text:'👥 Referralim', callback_data:'my_referral'}],
           [{text:'🔄 Token → Mahsulot', callback_data:'token_exchange'}],
-          [{text:'🛒 Token sotib olish (250 so\'m/dona)', callback_data:'buy_tokens'}],
+          [{text:'🛒 Token sotib olish (250 so\'m/dona)', callback_data:'tokshop_menu'}],
           [{text:'💵 Token → So\'m (250 so\'m/dona)', callback_data:'token_to_som'}],
           [{text:'🔙 Orqaga', callback_data:'back_main'}]
         ]}}
@@ -677,25 +680,25 @@ bot.on('callback_query', async (query) => {
     }
 
     // 🛒 TOKEN SOTIB OLISH
-    if(data==='buy_tokens') {
+    if(data==='tokshop_menu') {
       const balance = getBalance(uid);
       return bot.editMessageText(
         `🛒 <b>Token sotib olish</b>\n\n💰 Balansingiz: <b>${fmt(balance)}</b>\n🪙 1 token = <b>250 so'm</b>\n\nNechta token sotib olmoqchisiz?`,
         {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
-          [{text:"1 token — 250 so'm", callback_data:'buy_tok_1'},{text:"5 token — 1,250 so'm", callback_data:'buy_tok_5'}],
-          [{text:"10 token — 2,500 so'm", callback_data:'buy_tok_10'},{text:"20 token — 5,000 so'm", callback_data:'buy_tok_20'}],
-          [{text:"50 token — 12,500 so'm", callback_data:'buy_tok_50'},{text:"100 token — 25,000 so'm", callback_data:'buy_tok_100'}],
-          [{text:'✏️ Boshqa miqdor', callback_data:'buy_tok_custom'}],
+          [{text:"1 token — 250 so'm", callback_data:'tokshop_buy_1'},{text:"5 token — 1,250 so'm", callback_data:'tokshop_buy_5'}],
+          [{text:"10 token — 2,500 so'm", callback_data:'tokshop_buy_10'},{text:"20 token — 5,000 so'm", callback_data:'tokshop_buy_20'}],
+          [{text:"50 token — 12,500 so'm", callback_data:'tokshop_buy_50'},{text:"100 token — 25,000 so'm", callback_data:'tokshop_buy_100'}],
+          [{text:'✏️ Boshqa miqdor', callback_data:'tokshop_buy_custom'}],
           [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
         ]}}
       );
     }
 
-    if(data.startsWith('buy_tok_')) {
-      const val = data.replace('buy_tok_','');
+    if(data.startsWith('tokshop_buy_')) {
+      const val = data.replace('tokshop_buy_','');
       if(val==='custom') {
         setState(uid,{step:'buy_tokens_amount'});
-        return bot.sendMessage(chatId,`✏️ Nechta token sotib olmoqchisiz? Raqam yozing:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'buy_tokens'}]]}});
+        return bot.sendMessage(chatId,`✏️ Nechta token sotib olmoqchisiz? Raqam yozing:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'tokshop_menu'}]]}});
       }
       const amount = parseInt(val);
       const cost = amount * 250;
@@ -705,7 +708,7 @@ bot.on('callback_query', async (query) => {
           `❌ <b>Balans yetarli emas!</b>\n\n🪙 ${amount} token = <b>${fmt(cost)}</b>\n💰 Balansingiz: <b>${fmt(balance)}</b>\nYetishmaydi: <b>${fmt(cost - balance)}</b>`,
           {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
             [{text:"💰 Hisobni to'ldirish", callback_data:'topup_menu'}],
-            [{text:'🔙 Orqaga', callback_data:'buy_tokens'}]
+            [{text:'🔙 Orqaga', callback_data:'tokshop_menu'}]
           ]}}
         );
       }
@@ -729,7 +732,7 @@ bot.on('callback_query', async (query) => {
         return bot.editMessageText(
           `❌ <b>Token yetarli emas!</b>\n\n🪙 Sizda: <b>0 token</b>\n\n👥 Do'stlaringizni taklif qiling yoki token sotib oling!`,
           {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
-            [{text:'🛒 Token sotib olish', callback_data:'buy_tokens'}],
+            [{text:'🛒 Token sotib olish', callback_data:'tokshop_menu'}],
             [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
           ]}}
         );
@@ -901,7 +904,7 @@ bot.on('message', async (msg) => {
   const uid    = from.id;
   const chatId = chat.id;
   const state  = getState(uid);
-  if(text&&text.startsWith('/')&&text!=='/start') return;
+  if(text&&text.startsWith('/')) return;
 
   // Obuna tekshirish (admin emas bo'lsa)
   if(!isAdmin(uid)) {
@@ -985,7 +988,7 @@ bot.on('message', async (msg) => {
       {parse_mode:'HTML', reply_markup:{inline_keyboard:[
         [{text:'👥 Referralim', callback_data:'my_referral'}],
         [{text:'🔄 Token → Mahsulot', callback_data:'token_exchange'}],
-        [{text:'🛒 Token sotib olish (250 so\'m/dona)', callback_data:'buy_tokens'}],
+        [{text:'🛒 Token sotib olish (250 so\'m/dona)', callback_data:'tokshop_menu'}],
         [{text:'💵 Token → So\'m (250 so\'m/dona)', callback_data:'token_to_som'}],
         [{text:'🔙 Orqaga', callback_data:'back_main'}]
       ]}}
@@ -1122,7 +1125,7 @@ bot.on('message', async (msg) => {
           `❌ <b>Balans yetarli emas!</b>\n\n🪙 ${amount} token = <b>${fmt(cost)}</b>\n💰 Balansingiz: <b>${fmt(balance)}</b>\nYetishmaydi: <b>${fmt(cost - balance)}</b>`,
           {parse_mode:'HTML', reply_markup:{inline_keyboard:[
             [{text:"💰 Hisobni to'ldirish", callback_data:'topup_menu'}],
-            [{text:'🔙 Orqaga', callback_data:'buy_tokens'}]
+            [{text:'🔙 Orqaga', callback_data:'tokshop_menu'}]
           ]}}
         );
       }
