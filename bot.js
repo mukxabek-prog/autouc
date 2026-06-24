@@ -643,7 +643,7 @@ bot.on('message', async (msg) => {
   // YORDAM
   if(text===BTN_SUPPORT) {
     clearState(uid);
-    return bot.sendMessage(chatId,`📞 <b>Yordam</b>\n\n👨‍💼 Admin: @admin_username\n⏰ Ish vaqti: 09:00 - 22:00\n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,{parse_mode:'HTML'});
+    return bot.sendMessage(chatId,`📞 <b>Yordam</b>\n\n👨‍💼 Admin: @ismiljo_n\n⏰ Ish vaqti: 24:7 \n\n💬 Murojaat vaqtida buyurtma raqamingizni yozing!`,{parse_mode:'HTML'});
   }
 
   try {
