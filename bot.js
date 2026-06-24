@@ -140,14 +140,14 @@ function getAllPromos()    { return Object.values(loadDB().promocodes); }
 function deletePromo(code){ const d=loadDB(); const k=code.toUpperCase(); if(d.promocodes[k]){delete d.promocodes[k];saveDB(d);return true;} return false; }
 function markPromoUsed(code, tid) {
   const d=loadDB(); const k=code.toUpperCase();
-  if(d.promocodes[k]) { d.promocodes[k].usedBy.push(tid); saveDB(d); }
+  if(d.promocodes[k]) { d.promocodes[k].usedBy.push(String(tid)); saveDB(d); }
 }
 function checkPromo(code, tid, productType, productId) {
   const promo=getPromo(code);
   if(!promo)              return {ok:false,msg:'❌ Promokod topilmadi!'};
   if(!promo.is_active)    return {ok:false,msg:'❌ Promokod faol emas!'};
-  if(promo.usedBy.length>=promo.maxUses) return {ok:false,msg:'❌ Promokod tugagan!'};
-  if(promo.usedBy.includes(tid)) return {ok:false,msg:'❌ Siz bu promokodni allaqachon ishlatgansiz!'};
+  if(promo.usedBy.length>=promo.maxUses) return {ok:false,msg:'❌ Promokod tugagan! (limit toldi)'};
+  if(promo.usedBy.map(String).includes(String(tid))) return {ok:false,msg:'❌ Siz bu promokodni allaqachon ishlatgansiz!'};
   // O'yin turi tekshirish
   if(productType && promo.type !== productType) {
     const names={uc:'PUBG UC',popularity:'Popularity (PP)',diamond:'FF Diamond',gems:'CoC Gems',mlbb:'MLBB Diamond',robux:'Robux'};
@@ -286,7 +286,7 @@ function adminMenu() {
 // TO'LOV
 // ========================
 async function sendPayment(chatId, msgId, amount, edit) {
-  const text=`💰 <b>To\'ldirish: ${fmt(amount)}</b>\n\n1️⃣ Quyidagi kartaga pul o\'tkazing:\n🏦 <code>9860 1606 2989 6350</code>\n👤 <b>Qoshaqboyev.i</b>\n\n2️⃣ Miqdor: <b>${fmt(amount)}</b>\n\n3️⃣ To\'lovdan so\'ng <b>chek (screenshot)</b> yuboring\n\n✅ Admin tasdiqlashidan so\'ng balans qo\'shiladi!`;
+  const text=`💰 <b>To\'ldirish: ${fmt(amount)}</b>\n\n1️⃣ Quyidagi kartaga pul o\'tkazing:\n🏦 <code>9860 1606 2989 6350</code>\n👤 <b>Qoshaqboyev.M</b>\n\n2️⃣ Miqdor: <b>${fmt(amount)}</b>\n\n3️⃣ To\'lovdan so\'ng <b>chek (screenshot)</b> yuboring\n\n✅ Admin tasdiqlashidan so\'ng balans qo\'shiladi!`;
   const opts={parse_mode:'HTML',reply_markup:cancelBtn()};
   if(edit&&msgId) await bot.editMessageText(text,{chat_id:chatId,message_id:msgId,...opts});
   else await bot.sendMessage(chatId,text,opts);
@@ -414,7 +414,7 @@ bot.on('callback_query', async (query) => {
       const product=getProductById(pid);
       if(!product||!state.gameId) return;
       const g=gameInfo(product.type);
-      const finalPrice=state.finalPrice||product.price;
+      const finalPrice=(state.finalPrice!==undefined&&state.finalPrice!==null)?state.finalPrice:product.price;
       let promoUsed=null;
 
       if(state.activePromo) {
@@ -422,8 +422,11 @@ bot.on('callback_query', async (query) => {
         if(chk.ok) { markPromoUsed(state.activePromo.code,uid); promoUsed=state.activePromo.code; }
       }
 
-      const deducted=deductBalance(uid,finalPrice,product.name+' xaridi');
-      if(!deducted) return bot.editMessageText('❌ Balans yetarli emas!',{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🏠 Menyu',callback_data:'back_main'}]]}});
+      let deducted=true;
+      if(finalPrice>0) {
+        deducted=deductBalance(uid,finalPrice,product.name+' xaridi');
+        if(!deducted) return bot.editMessageText('❌ Balans yetarli emas!',{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🏠 Menyu',callback_data:'back_main'}]]}});
+      }
 
       const orderId=createOrder(uid,product.type,product.name,finalPrice,product.price,state.gameId,state.gameNick,promoUsed);
       clearState(uid);
@@ -762,7 +765,7 @@ bot.on('message', async (msg) => {
       if(product.type==='robux') {
         const nik=text.trim();
         if(nik.length<3||nik.length>20) return bot.sendMessage(chatId,'❌ Roblox username 3-20 ta belgidan iborat!');
-        const finalPrice=state.finalPrice||product.price;
+        const finalPrice=(state.finalPrice!==undefined&&state.finalPrice!==null)?state.finalPrice:product.price;
         const g=gameInfo('robux');
         setState(uid,{gameId:nik,step:'confirm_step'});
         const promoLine=state.activePromo?`\n🎟 Promokod: ${state.activePromo.code} (-${state.activePromo.discount}%)`:'';
@@ -790,7 +793,7 @@ bot.on('message', async (msg) => {
       const product=getProductById(state.selectedProduct);
       if(!product) return;
       const g=gameInfo(product.type);
-      const finalPrice=state.finalPrice||product.price;
+      const finalPrice=(state.finalPrice!==undefined&&state.finalPrice!==null)?state.finalPrice:product.price;
       setState(uid,{gameNick:nik,step:'confirm_step'});
       const promoLine=state.activePromo?`\n🎟 Promokod: ${state.activePromo.code} (-${state.activePromo.discount}%)`:'';
       return bot.sendMessage(chatId,
