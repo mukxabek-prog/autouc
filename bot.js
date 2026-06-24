@@ -35,7 +35,7 @@ const DEFAULT_DB = {
   next_order_id: 1, next_topup_id: 1, promocodes: {},
   products: {
     uc:         [ {id:1,type:'uc',name:'60 UC',price:12,500},{id:2,type:'uc',name:'325 UC',price:60.000},{id:3,type:'uc',name:'660 UC',price:120.000},{id:4,type:'uc',name:'1800 UC',price:290.000},{id:5,type:'uc',name:'3850 UC',price:640.000},{id:6,type:'uc',name:'8100 UC',price:1.130.000} ],
-    popularity: [ {id:7,type:'PP LAR',name:'20k Pp',price:20.000},{id:8,type:'Pp',name:'50k Pp',price:50.000},{id:9,type:'Pp',name:'100k Pp',price:90.000},{id:10,type:'Pp',name:'150k Pp',price:140.000} ],
+    popularity: [ {id:7,type:'PP',name:'20k Pp',price:20.000},{id:8,type:'Pp',name:'50k Pp',price:50.000},{id:9,type:'Pp',name:'100k Pp',price:90.000},{id:10,type:'Pp',name:'150k Pp',price:140.000} ],
     diamond:    [ {id:11,type:'diamond',name:'100 Diamond',price:18000},{id:12,type:'diamond',name:'310 Diamond',price:52000},{id:13,type:'diamond',name:'520 Diamond',price:85000},{id:14,type:'diamond',name:'1060 Diamond',price:165000},{id:15,type:'diamond',name:'2180 Diamond',price:330000},{id:16,type:'diamond',name:'5600 Diamond',price:820000} ],
     gems:       [ {id:17,type:'gems',name:'80 Gems',price:12000},{id:18,type:'gems',name:'500 Gems',price:65000},{id:19,type:'gems',name:'1200 Gems',price:150000},{id:20,type:'gems',name:'2500 Gems',price:300000},{id:21,type:'gems',name:'6500 Gems',price:750000},{id:22,type:'gems',name:'14000 Gems',price:1500000} ],
     mlbb:       [ {id:23,type:'mlbb',name:'86 Diamonds',price:20000},{id:24,type:'mlbb',name:'172 Diamonds',price:38000},{id:25,type:'mlbb',name:'257 Diamonds',price:55000},{id:26,type:'mlbb',name:'706 Diamonds',price:145000},{id:27,type:'mlbb',name:'1412 Diamonds',price:280000},{id:28,type:'mlbb',name:'2195 Diamonds',price:420000} ],
@@ -179,7 +179,7 @@ function clearState(id)  { delete userStates[id]; }
 function gameInfo(type) {
   return {
     uc:        {name:'PUBG Mobile',   emoji:'🎮',currency:'UC',       idLabel:'PUBG ID (faqat raqam, max 15)'},
-    popularity:{name:'PUBG Mobile',   emoji:'⭐',currency:'Popularity',idLabel:'PUBG ID (faqat raqam, max 15)'},
+    popularity:{name:'PUBG Mobile',   emoji:'⭐',currency:'PP',idLabel:'PUBG ID (faqat raqam, max 15)'},
     diamond:   {name:'Free Fire',     emoji:'🔥',currency:'Diamond',  idLabel:'Free Fire ID (faqat raqam)'},
     gems:      {name:'Clash of Clans',emoji:'⚔️',currency:'Gems',     idLabel:'CoC Tag (masalan: #ABC1234)'},
     mlbb:      {name:'Mobile Legends',emoji:'🌟',currency:'Diamond',  idLabel:'MLBB ID (faqat raqam)'},
@@ -209,7 +209,7 @@ async function askGemini(uid, msg) {
 // ========================
 const CAT_BTNS = {
   '🎮 PUBG — UC':               'uc',
-  '⭐ PUBG — Popularity':       'popularity',
+  '⭐ PUBG — PP':       'Pp',
   '🔥 Free Fire — Diamond':     'diamond',
   '⚔️ Clash of Clans — Gems':   'gems',
   '🌟 Mobile Legends — Diamond':'mlbb',
@@ -225,7 +225,7 @@ const BTN_AI      = '🤖 AI bilan suhbat';
 function mainKeyboard() {
   return {
     keyboard:[
-      ['🎮 PUBG — UC',           '⭐ PUBG — Popularity'],
+      ['🎮 PUBG — UC',           '⭐ PUBG — PP'],
       ['🔥 Free Fire — Diamond', '⚔️ Clash of Clans — Gems'],
       ['🌟 Mobile Legends — Diamond','🟥 Roblox — Robux'],
       [BTN_TOPUP,  BTN_ACCOUNT],
@@ -272,7 +272,7 @@ function adminMenu() {
 // TO'LOV
 // ========================
 async function sendPayment(chatId, msgId, amount, edit) {
-  const text=`💰 <b>To\'ldirish: ${fmt(amount)}</b>\n\n1️⃣ Quyidagi kartaga pul o\'tkazing:\n🏦 <code>8600 0000 0000 0000</code>\n👤 <b>Admin Ismi</b>\n\n2️⃣ Miqdor: <b>${fmt(amount)}</b>\n\n3️⃣ To\'lovdan so\'ng <b>chek (screenshot)</b> yuboring\n\n✅ Admin tasdiqlashidan so\'ng balans qo\'shiladi!`;
+  const text=`💰 <b>To\'ldirish: ${fmt(amount)}</b>\n\n1️⃣ Quyidagi kartaga pul o\'tkazing:\n🏦 <code>9860 1606 2989 6350</code>\n👤 <b>Qoshaqboyev.i</b>\n\n2️⃣ Miqdor: <b>${fmt(amount)}</b>\n\n3️⃣ To\'lovdan so\'ng <b>chek (screenshot)</b> yuboring\n\n✅ Admin tasdiqlashidan so\'ng balans qo\'shiladi!`;
   const opts={parse_mode:'HTML',reply_markup:cancelBtn()};
   if(edit&&msgId) await bot.editMessageText(text,{chat_id:chatId,message_id:msgId,...opts});
   else await bot.sendMessage(chatId,text,opts);
@@ -284,7 +284,7 @@ async function sendPayment(chatId, msgId, amount, edit) {
 async function sendStart(chatId, from) {
   getOrCreateUser(from.id,from.username,[from.first_name,from.last_name].filter(Boolean).join(' '));
   await bot.sendMessage(chatId,
-    `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & Popularity\n🔥 Free Fire — Diamond\n⚔️ Clash of Clans — Gems\n🌟 Mobile Legends — Diamond\n🟥 Roblox — Robux\n\n💳 To\'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`,
+    `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & PP\n🔥 Free Fire — Diamond\n⚔️ Clash of Clans — Gems\n🌟 Mobile Legends — Diamond\n🟥 Roblox — Robux\n\n💳 To\'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`,
     {parse_mode:'HTML',reply_markup:mainKeyboard()}
   );
 }
