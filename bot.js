@@ -327,7 +327,10 @@ async function sendPayment(chatId, msgId, amount, edit) {
 // ========================
 async function sendStart(chatId, from) {
   getOrCreateUser(from.id,from.username,[from.first_name,from.last_name].filter(Boolean).join(' '));
-  // Ovozli xabar (asalom)
+  // Avval rasm yuborish
+  const PHOTO_ID = 'AgACAgIAAxkBAAFNTfFqO-0P_mU_0pN__dKsit56Cp-d6QACiSFrG-kE4UkmrmASwGXQ2wEAAwIAA3gAAzwE';
+  try { await bot.sendPhoto(chatId, PHOTO_ID); } catch(e) {}
+  // Keyin ovozli xabar
   const VOICE_ID = 'AwACAgQAAxkBAAFNSUhqO707mvf9vSUCsKHiMP0wyL_VrAACwgQAAv3WxFJ8Ar5yX_dhtTwE';
   try { await bot.sendVoice(chatId, VOICE_ID); } catch(e) {}
   await bot.sendMessage(chatId,
@@ -673,6 +676,108 @@ bot.on('callback_query', async (query) => {
       );
     }
 
+    // 🛒 TOKEN SOTIB OLISH
+    if(data==='buy_tokens') {
+      const balance = getBalance(uid);
+      return bot.editMessageText(
+        `🛒 <b>Token sotib olish</b>\n\n💰 Balansingiz: <b>${fmt(balance)}</b>\n🪙 1 token = <b>250 so'm</b>\n\nNechta token sotib olmoqchisiz?`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:"1 token — 250 so'm", callback_data:'buy_tok_1'},{text:"5 token — 1,250 so'm", callback_data:'buy_tok_5'}],
+          [{text:"10 token — 2,500 so'm", callback_data:'buy_tok_10'},{text:"20 token — 5,000 so'm", callback_data:'buy_tok_20'}],
+          [{text:"50 token — 12,500 so'm", callback_data:'buy_tok_50'},{text:"100 token — 25,000 so'm", callback_data:'buy_tok_100'}],
+          [{text:'✏️ Boshqa miqdor', callback_data:'buy_tok_custom'}],
+          [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
+        ]}}
+      );
+    }
+
+    if(data.startsWith('buy_tok_')) {
+      const val = data.replace('buy_tok_','');
+      if(val==='custom') {
+        setState(uid,{step:'buy_tokens_amount'});
+        return bot.sendMessage(chatId,`✏️ Nechta token sotib olmoqchisiz? Raqam yozing:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'buy_tokens'}]]}});
+      }
+      const amount = parseInt(val);
+      const cost = amount * 250;
+      const balance = getBalance(uid);
+      if(balance < cost) {
+        return bot.editMessageText(
+          `❌ <b>Balans yetarli emas!</b>\n\n🪙 ${amount} token = <b>${fmt(cost)}</b>\n💰 Balansingiz: <b>${fmt(balance)}</b>\nYetishmaydi: <b>${fmt(cost - balance)}</b>`,
+          {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:"💰 Hisobni to'ldirish", callback_data:'topup_menu'}],
+            [{text:'🔙 Orqaga', callback_data:'buy_tokens'}]
+          ]}}
+        );
+      }
+      const deducted = deductBalance(uid, cost, `${amount} token sotib olindi`);
+      if(!deducted) return bot.editMessageText('❌ Xato yuz berdi!',{chat_id:chatId,message_id:msgId});
+      addTokens(uid, amount);
+      const newTokens = getTokens(uid);
+      const newBal = getBalance(uid);
+      return bot.editMessageText(
+        `✅ <b>Token sotib olindi!</b>\n\n🪙 Qo'shildi: <b>+${amount} token</b>\n💰 Sarflandi: <b>${fmt(cost)}</b>\n\n🪙 Jami tokenlar: <b>${newTokens} token</b>\n💳 Qolgan balans: <b>${fmt(newBal)}</b>`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'🔙 Pul ishlash', callback_data:'back_hisob'}]
+        ]}}
+      );
+    }
+
+    // 💵 TOKEN → SO'M
+    if(data==='token_to_som') {
+      const tokens = getTokens(uid);
+      if(tokens < 1) {
+        return bot.editMessageText(
+          `❌ <b>Token yetarli emas!</b>\n\n🪙 Sizda: <b>0 token</b>\n\n👥 Do'stlaringizni taklif qiling yoki token sotib oling!`,
+          {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:'🛒 Token sotib olish', callback_data:'buy_tokens'}],
+            [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
+          ]}}
+        );
+      }
+      const btnRows = [];
+      if(tokens>=100) btnRows.push([{text:`100 token — ${fmt(25000)}`, callback_data:'tok2som_100'}]);
+      if(tokens>=50) btnRows.push([{text:`50 token — ${fmt(12500)}`, callback_data:'tok2som_50'}]);
+      if(tokens>=10) btnRows.push([{text:`10 token — ${fmt(2500)}`, callback_data:'tok2som_10'}]);
+      btnRows.push([{text:`Barchasi (${tokens} token = ${fmt(tokens*250)})`, callback_data:`tok2som_${tokens}`}]);
+      btnRows.push([{text:'✏️ Boshqa miqdor', callback_data:'tok2som_custom'}]);
+      btnRows.push([{text:'🔙 Orqaga', callback_data:'back_hisob'}]);
+      return bot.editMessageText(
+        `💵 <b>Token → So'm almashtirish</b>\n\n🪙 Sizda: <b>${tokens} token</b>\n💰 1 token = <b>250 so'm</b>\n💰 Jami qiymat: <b>${fmt(tokens * 250)}</b>\n\nNechtasini almashtirasiz?`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:btnRows}}
+      );
+    }
+
+    if(data.startsWith('tok2som_')) {
+      const val = data.replace('tok2som_','');
+      if(val==='custom') {
+        setState(uid,{step:'tok2som_amount'});
+        return bot.sendMessage(chatId,`✏️ Nechta tokenni so'mga almashtirasiz? Raqam yozing:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'token_to_som'}]]}});
+      }
+      const amount = parseInt(val);
+      const tokens = getTokens(uid);
+      if(isNaN(amount)||amount<1) return;
+      if(tokens < amount) {
+        return bot.editMessageText(
+          `❌ <b>Token yetarli emas!</b>\n\n🪙 Sizda: <b>${tokens} token</b>\nKerak: <b>${amount} token</b>`,
+          {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:'🔙 Orqaga', callback_data:'token_to_som'}]
+          ]}}
+        );
+      }
+      const earned = amount * 250;
+      deductTokens(uid, amount);
+      addBalance(uid, earned, `${amount} token → so'm almashtirish`);
+      const newTokens = getTokens(uid);
+      const newBal = getBalance(uid);
+      return bot.editMessageText(
+        `✅ <b>Almashtirish muvaffaqiyatli!</b>\n\n🪙 Sarflandi: <b>${amount} token</b>\n💰 Qo'shildi: <b>${fmt(earned)}</b>\n\n🪙 Qolgan tokenlar: <b>${newTokens} token</b>\n💳 Yangi balans: <b>${fmt(newBal)}</b>`,
+        {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
+          [{text:'🏠 Bosh menyu', callback_data:'back_main'}],
+          [{text:'🔙 Pul ishlash', callback_data:'back_hisob'}]
+        ]}}
+      );
+    }
+
     // 🔄 TOKEN ALMASHTIRISH - o'yin tanlash
     if(data==='token_exchange') {
       const tokens = getTokens(uid);
@@ -1000,6 +1105,49 @@ bot.on('message', async (msg) => {
         {parse_mode:'HTML', reply_markup:{inline_keyboard:[
           [{text:'✅ Tasdiqlash', callback_data:'tex_confirm'},{text:'❌ Bekor', callback_data:'token_exchange'}]
         ]}}
+      );
+    }
+
+    // TOKEN SOTIB OLISH - boshqa miqdor
+    if(state.step==='buy_tokens_amount') {
+      if(!text) return;
+      const amount = parseInt(text.trim().replace(/[\s,]/g,''));
+      if(isNaN(amount)||amount<1) return bot.sendMessage(chatId,'❌ Kamida 1 ta token kiriting!');
+      if(amount>10000) return bot.sendMessage(chatId,'❌ Maksimum 10,000 token!');
+      const cost = amount * 250;
+      const balance = getBalance(uid);
+      clearState(uid);
+      if(balance < cost) {
+        return bot.sendMessage(chatId,
+          `❌ <b>Balans yetarli emas!</b>\n\n🪙 ${amount} token = <b>${fmt(cost)}</b>\n💰 Balansingiz: <b>${fmt(balance)}</b>\nYetishmaydi: <b>${fmt(cost - balance)}</b>`,
+          {parse_mode:'HTML', reply_markup:{inline_keyboard:[
+            [{text:"💰 Hisobni to'ldirish", callback_data:'topup_menu'}],
+            [{text:'🔙 Orqaga', callback_data:'buy_tokens'}]
+          ]}}
+        );
+      }
+      deductBalance(uid, cost, `${amount} token sotib olindi`);
+      addTokens(uid, amount);
+      return bot.sendMessage(chatId,
+        `✅ <b>Token sotib olindi!</b>\n\n🪙 Qo'shildi: <b>+${amount} token</b>\n💰 Sarflandi: <b>${fmt(cost)}</b>\n\n🪙 Jami tokenlar: <b>${getTokens(uid)} token</b>\n💳 Qolgan balans: <b>${fmt(getBalance(uid))}</b>`,
+        {parse_mode:'HTML', reply_markup:mainKeyboard()}
+      );
+    }
+
+    // TOKEN → SO'M - boshqa miqdor
+    if(state.step==='tok2som_amount') {
+      if(!text) return;
+      const amount = parseInt(text.trim().replace(/[\s,]/g,''));
+      const tokens = getTokens(uid);
+      if(isNaN(amount)||amount<1) return bot.sendMessage(chatId,'❌ Kamida 1 ta token kiriting!');
+      if(amount>tokens) return bot.sendMessage(chatId,`❌ Sizda faqat <b>${tokens} token</b> bor!`,{parse_mode:'HTML'});
+      clearState(uid);
+      const earned = amount * 250;
+      deductTokens(uid, amount);
+      addBalance(uid, earned, `${amount} token → so'm almashtirish`);
+      return bot.sendMessage(chatId,
+        `✅ <b>Almashtirish muvaffaqiyatli!</b>\n\n🪙 Sarflandi: <b>${amount} token</b>\n💰 Qo'shildi: <b>${fmt(earned)}</b>\n\n🪙 Qolgan tokenlar: <b>${getTokens(uid)} token</b>\n💳 Yangi balans: <b>${fmt(getBalance(uid))}</b>`,
+        {parse_mode:'HTML', reply_markup:mainKeyboard()}
       );
     }
 
