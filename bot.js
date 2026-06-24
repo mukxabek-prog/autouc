@@ -326,6 +326,9 @@ async function sendPayment(chatId, msgId, amount, edit) {
 // ========================
 async function sendStart(chatId, from) {
   getOrCreateUser(from.id,from.username,[from.first_name,from.last_name].filter(Boolean).join(' '));
+  // Ovozli xabar (asalom)
+  const VOICE_ID = 'AwACAgQAAxkBAAFNSUhqO707mvf9vSUCsKHiMP0wyL_VrAACwgQAAv3WxFJ8Ar5yX_dhtTwE';
+  try { await bot.sendVoice(chatId, VOICE_ID); } catch(e) {}
   await bot.sendMessage(chatId,
     `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & Popularity\n🔥 Free Fire — Diamond\n⚔️ Clash of Clans — Gems\n🌟 Mobile Legends — Diamond\n🟥 Roblox — Robux\n\n💳 To\'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`,
     {parse_mode:'HTML',reply_markup:mainKeyboard()}
