@@ -105,19 +105,19 @@ function processReferral(newUserId, referId) {
   if(d.users[id].referred_by) return; // allaqachon referral orqali kelgan
   d.users[id].referred_by=rid;
   d.users[rid].referral_count=(d.users[rid].referral_count||0)+1;
-  d.users[rid].tokens=(d.users[rid].tokens||0)+2; // har bir referral uchun 2 token
+  d.users[rid].tokens=(d.users[rid].tokens||0)+1; // har bir referral uchun 1 token
   saveDB(d);
   return d.users[rid];
 }
 
 // TOKEN ALMASHTIRISH NARCHLAR (har token = 1000 so'm, yoki maxsus jadval)
 const TOKEN_EXCHANGE = {
-  uc:         { rate: 5, product: '60 UC',       type: 'uc',    tokens: 5  },
-  diamond:    { rate: 5, product: '100 Diamond',  type: 'diamond', tokens: 5 },
-  popularity: { rate: 5, product: '20K PP',       type: 'popularity', tokens: 5 },
-  mlbb:       { rate: 5, product: '86 Diamonds',  type: 'mlbb',  tokens: 5  },
-  gems:       { rate: 5, product: '80 Gems',      type: 'gems',  tokens: 5  },
-  robux:      { rate: 8, product: '400 Robux',    type: 'robux', tokens: 8  },
+  uc:         { product: '60 UC',       type: 'uc',         tokens: 50 },
+  popularity: { product: '20K PP',      type: 'popularity', tokens: 20 },
+  diamond:    { product: '100 Diamond', type: 'diamond',    tokens: 20 },
+  gems:       { product: '80 Gems',     type: 'gems',       tokens: 15 },
+  mlbb:       { product: '86 Diamonds', type: 'mlbb',       tokens: 22 },
+  robux:      { product: '400 Robux',   type: 'robux',      tokens: 30 },
 };
 
 // TOPUP
@@ -262,7 +262,7 @@ const BTN_ORDERS  = '📋 Buyurtmalarim';
 const BTN_SUPPORT = '📞 Yordam';
 const BTN_PROMO   = '🎟 Promokod kiritish';
 const BTN_AI      = '🤖 AI bilan suhbat';
-const BTN_HISOB   = '💼 Hisob ishlash';
+const BTN_HISOB   = '💸 Pul ishlash';
 
 function mainKeyboard() {
   return {
@@ -351,7 +351,7 @@ bot.onText(/\/start(.*)/, async (msg, match) => {
         // Referralga xabar yuborish
         try {
           await bot.sendMessage(referId,
-            `🎉 <b>Yangi referral!</b>\n\n👤 ${from.first_name} siz orqali kirdi!\n🪙 Hisobingizga <b>+2 token</b> qo'shildi!\n\nJami tokenlaringiz: <b>${getTokens(referId)} token</b>`,
+            `🎉 <b>Yangi referral!</b>\n\n👤 ${from.first_name} siz orqali kirdi!\n🪙 Hisobingizga <b>+1 token</b> qo'shildi!\n\nJami tokenlaringiz: <b>${getTokens(referId)} token</b>`,
             {parse_mode:'HTML'}
           );
         } catch(e){}
@@ -616,7 +616,7 @@ bot.on('callback_query', async (query) => {
       const refLink = `https://t.me/${process.env.BOT_USERNAME||'GameShopBot'}?start=ref_${uid}`;
       const refCount = user?.referral_count||0;
       return bot.editMessageText(
-        `👥 <b>Mening referralim</b>\n\n🔗 Sizning havolangiz:\n<code>${refLink}</code>\n\n👥 Ulashgan do'stlaringiz: <b>${refCount} ta</b>\n🪙 Har bir do'st uchun: <b>+2 token</b>\n\n💡 Havolani do'stlaringizga yuboring! Ular bot orqali kirsa siz avtomatik 2 token olasiz!`,
+        `👥 <b>Mening referralim</b>\n\n🔗 Sizning havolangiz:\n<code>${refLink}</code>\n\n👥 Ulashgan do'stlaringiz: <b>${refCount} ta</b>\n🪙 Har bir do'st uchun: <b>+1 token</b>\n\n💡 Havolani do'stlaringizga yuboring! Ular bot orqali kirsa siz avtomatik 2 token olasiz!`,
         {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
           [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
           [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
@@ -628,7 +628,7 @@ bot.on('callback_query', async (query) => {
     if(data==='back_hisob') {
       const tokens = getTokens(uid);
       return bot.editMessageText(
-        `💼 <b>Hisob ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
+        `💸 <b>Pul ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
         {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
           [{text:'👥 Referralim', callback_data:'my_referral'}],
           [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
@@ -643,12 +643,12 @@ bot.on('callback_query', async (query) => {
       return bot.editMessageText(
         `🔄 <b>Tokenni almashtirish</b>\n\n🪙 Sizda: <b>${tokens} token</b>\n\n🎮 Qaysi o'yin uchun almashtirmoqchisiz?`,
         {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
-          [{text:'🎮 PUBG — UC (5 token)', callback_data:'tex_uc'}],
-          [{text:'🔥 Free Fire — Diamond (5 token)', callback_data:'tex_diamond'}],
-          [{text:'⭐ PUBG — Popularity (5 token)', callback_data:'tex_popularity'}],
-          [{text:'🌟 Mobile Legends (5 token)', callback_data:'tex_mlbb'}],
-          [{text:'⚔️ Clash of Clans — Gems (5 token)', callback_data:'tex_gems'}],
-          [{text:'🟥 Roblox — Robux (8 token)', callback_data:'tex_robux'}],
+          [{text:'🎮 PUBG — UC (50 token)', callback_data:'tex_uc'}],
+          [{text:'🔥 Free Fire — Diamond (20 token)', callback_data:'tex_diamond'}],
+          [{text:'⭐ PUBG — Popularity (20 token)', callback_data:'tex_popularity'}],
+          [{text:'⚔️ Clash of Clans — Gems (15 token)', callback_data:'tex_gems'}],
+          [{text:'🌟 Mobile Legends (22 token)', callback_data:'tex_mlbb'}],
+          [{text:'🟥 Roblox — Robux (30 token)', callback_data:'tex_robux'}],
           [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
         ]}}
       );
@@ -663,7 +663,7 @@ bot.on('callback_query', async (query) => {
       const g = gameInfo(gameType);
       if(tokens < ex.tokens) {
         return bot.editMessageText(
-          `❌ <b>Token yetarli emas!</b>\n\n🪙 Sizda: <b>${tokens} token</b>\n💡 Kerak: <b>${ex.tokens} token</b>\n\nYetishmaydi: <b>${ex.tokens - tokens} token</b>\n\n👥 Do'stlaringizni taklif qiling, har biri uchun +2 token olasiz!`,
+          `❌ <b>Token yetarli emas!</b>\n\n🪙 Sizda: <b>${tokens} token</b>\n💡 Kerak: <b>${ex.tokens} token</b>\n\nYetishmaydi: <b>${ex.tokens - tokens} token</b>\n\n👥 Do'stlaringizni taklif qiling, har biri uchun +1 token olasiz!`,
           {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[
             [{text:'👥 Referral havolam', callback_data:'my_referral'}],
             [{text:'🔙 Orqaga', callback_data:'token_exchange'}]
@@ -839,7 +839,7 @@ bot.on('message', async (msg) => {
     clearState(uid);
     const tokens = getTokens(uid);
     return bot.sendMessage(chatId,
-      `💼 <b>Hisob ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
+      `💸 <b>Pul ishlash</b>\n\n🪙 Sizning tokenlaringiz: <b>${tokens} token</b>\n\nNimani xohlaysiz?`,
       {parse_mode:'HTML', reply_markup:{inline_keyboard:[
         [{text:'👥 Referralim', callback_data:'my_referral'}],
         [{text:'🔄 Tokenni almashtirish', callback_data:'token_exchange'}],
