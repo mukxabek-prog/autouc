@@ -6,49 +6,55 @@
     <title>CyberDrop App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div id="app">
-        <!-- Profil Header -->
+        <!-- Profil Header (Tepadagi qism shaffofroq bo'ladi) -->
         <header>
             <div class="profile-box" onclick="copyId()">
                 <img id="user-avatar" src="https://via.placeholder.com/45" alt="Avatar">
                 <div class="user-info">
                     <span id="user-name">Yuklanmoqda...</span>
-                    <span id="user-id-text">ID: 00000000 <i class="fa-regular fa-copy"></i></span>
+                    <span id="user-id-text">ID: 00000000</span>
                 </div>
             </div>
             <div class="token-status">
                 <span id="token-count">0</span>
-                <img src="https://cdn-icons-png.flaticon.com/512/5637/5637217.png" width="20" alt="coin">
+                <img src="https://cdn-icons-png.flaticon.com/512/5637/5637217.png" width="22" alt="coin">
             </div>
         </header>
 
-        <!-- Asosiy qism (Placeholder) -->
-        <main id="main-content">
-            <div class="placeholder-text">
-                <h2>Yaqinda...</h2>
-                <p>Bu bo'lim ustida ish olib borilmoqda. <br> Keyingi yangilanishlarni kuting!</p>
+        <!-- ASOSIY ORQA FON VA KONTENT -->
+        <main id="game-lobby">
+            <!-- Bu yerga rasm CSS orqali qo'yiladi -->
+            <div class="center-content">
+                <!-- O'rtada nimanidir kutish uchun animatsiya yoki rasm qo'yish mumkin -->
+                <img src="https://cdn-icons-png.flaticon.com/512/6009/6009140.png" class="floating-logo">
+                <h2 id="tab-title">BOSH SAHIFA</h2>
             </div>
         </main>
 
-        <!-- Pastki 5 talik Menyusi -->
+        <!-- PASTKI MENYU (Rasmlar bilan) -->
         <nav class="bottom-nav">
-            <div class="nav-item" onclick="changeTab('earn')">
-                <img src="https://cdn-icons-png.flaticon.com/512/272/272525.png" alt="earn">
+            <!-- 1. Hamyon/Pul ishlash -->
+            <div class="nav-item" onclick="changeTab('earn', this)">
+                <img src="https://cdn-icons-png.flaticon.com/512/10384/10384161.png" alt="earn">
             </div>
-            <div class="nav-item" onclick="changeTab('tasks')">
-                <img src="https://cdn-icons-png.flaticon.com/512/1062/1062976.png" alt="tasks">
+            <!-- 2. Vazifalar/Sovg'alar -->
+            <div class="nav-item" onclick="changeTab('tasks', this)">
+                <img src="https://cdn-icons-png.flaticon.com/512/9334/9334541.png" alt="tasks">
             </div>
-            <div class="nav-item active" onclick="changeTab('home')">
-                <img src="https://cdn-icons-png.flaticon.com/512/616/616408.png" alt="home" class="main-icon">
+            <!-- 3. ASOSIY (UY) -->
+            <div class="nav-item active" onclick="changeTab('home', this)">
+                <img src="https://cdn-icons-png.flaticon.com/512/8002/8002123.png" alt="home" class="main-icon">
             </div>
-            <div class="nav-item" onclick="changeTab('shop')">
-                <img src="https://cdn-icons-png.flaticon.com/512/3081/3081559.png" alt="shop">
+            <!-- 4. Do'kon -->
+            <div class="nav-item" onclick="changeTab('shop', this)">
+                <img src="https://cdn-icons-png.flaticon.com/512/8372/8372074.png" alt="shop">
             </div>
-            <div class="nav-item" onclick="changeTab('settings')">
-                <img src="https://cdn-icons-png.flaticon.com/512/2040/2040504.png" alt="settings">
+            <!-- 5. Sozlamalar/Profil -->
+            <div class="nav-item" onclick="changeTab('profile', this)">
+                <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="profile">
             </div>
         </nav>
     </div>
