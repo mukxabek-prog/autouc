@@ -1,99 +1,48 @@
 const tg = window.Telegram.WebApp;
-tg.expand(); // Web appni to'liq ekranga yoyish
+tg.expand();
 
-const API_URL = ""; // Agar HTML va bot bitta hostda bo'lsa bo'sh qoladi
-
-// Foydalanuvchi ma'lumotlarini o'rnatish
 const user = tg.initDataUnsafe.user;
+
 if (user) {
-    document.getElementById('user-name').innerText = user.first_name + (user.last_name ? ' ' + user.last_name : '');
-    document.getElementById('user-id').innerText = "ID: " + user.id;
-    if (user.photo_url) {
-        document.getElementById('user-photo').src = user.photo_url;
-    }
+    document.getElementById('user-name').innerText = user.username || user.first_name;
+    document.getElementById('user-id-text').innerHTML = `ID: ${user.id} <i class="fa-regular fa-copy"></i>`;
+    if (user.photo_url) document.getElementById('user-avatar').src = user.photo_url;
 }
 
-// ID ni nusxalash funksiyasi
 function copyId() {
-    navigator.clipboard.writeText(user.id).then(() => {
-        tg.showAlert("ID nusxalandi: " + user.id);
-    });
+    navigator.clipboard.writeText(user.id.toString());
+    tg.HapticFeedback.notificationOccurred('success');
+    tg.showAlert("ID nusxalandi!");
 }
 
-// Bazadan ma'lumotlarni olish
-async function loadUserData() {
-    try {
-        const response = await fetch('/api/me', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData: tg.initData })
-        });
-        const data = await response.json();
-        if (data.ok) {
-            document.getElementById('token-balance').innerText = data.tokens;
-            if (!data.checkin_available) {
-                setCooldown(data.checkin_next_at);
-            }
-        }
-    } catch (e) {
-        console.error("Xatolik:", e);
-    }
-}
-
-// Bonusni olish (OCHISH tugmasi)
-async function claimDrop() {
-    tg.HapticFeedback.impactOccurred('medium');
-    try {
-        const response = await fetch('/api/checkin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData: tg.initData })
-        });
-        const data = await response.json();
-        
-        if (data.ok) {
-            tg.showPopup({
-                title: 'Tabriklaymiz!',
-                message: `Sizga ${data.earned} ta token tushdi!`,
-                buttons: [{type: 'ok'}]
-            });
-            document.getElementById('token-balance').innerText = data.tokens;
-            setCooldown(data.nextAt);
-        } else if (data.error === 'cooldown') {
-            tg.showAlert("Hali vaqt bor!");
-        }
-    } catch (e) {
-        tg.showAlert("Tarmoq xatosi");
-    }
-}
-
-function setCooldown(nextAt) {
-    const btn = document.getElementById('open-btn');
-    const timer = document.getElementById('cooldown-timer');
-    btn.disabled = true;
-    btn.style.opacity = "0.5";
-    btn.innerText = "YOPILGAN";
-    
-    // Oddiy taymer mantiqi (ixtiyoriy qo'shish mumkin)
-    timer.classList.remove('hidden');
-    timer.innerText = "Ertaga qaytib keling!";
-}
-
-// Vazifani tekshirish
-async function checkTask() {
-    const response = await fetch('/api/task/channel', {
+async function loadTokens() {
+    const res = await fetch('/api/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initData: tg.initData })
     });
-    const data = await response.json();
+    const data = await res.json();
     if (data.ok) {
-        tg.showAlert("Vazifa bajarildi! +3 token");
-        loadUserData();
-    } else {
-        tg.showAlert("Avval kanalga a'zo bo'ling!");
+        document.getElementById('token-count').innerText = data.tokens;
     }
 }
 
-// Dastlabki yuklash
-loadUserData();
+// Bo'limlarni almashtirish (Hozircha faqat vizual)
+function changeTab(tabName) {
+    tg.HapticFeedback.impactOccurred('light');
+    
+    // Barcha nav-item lardan 'active' klassini olib tashlash
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    // Bosilganiga 'active' klassini qo'shish
+    const clickedItem = event.currentTarget;
+    clickedItem.classList.add('active');
+
+    // O'rtadagi matnni o'zgartirish (test uchun)
+    const mainText = document.querySelector('.placeholder-text h2');
+    mainText.innerText = tabName.toUpperCase() + "...";
+}
+
+loadTokens();
