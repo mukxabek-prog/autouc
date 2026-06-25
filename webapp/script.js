@@ -1,48 +1,23 @@
-const tg = window.Telegram.WebApp;
-tg.expand();
-
-const user = tg.initDataUnsafe.user;
-
-if (user) {
-    document.getElementById('user-name').innerText = user.username || user.first_name;
-    document.getElementById('user-id-text').innerHTML = `ID: ${user.id} <i class="fa-regular fa-copy"></i>`;
-    if (user.photo_url) document.getElementById('user-avatar').src = user.photo_url;
-}
-
-function copyId() {
-    navigator.clipboard.writeText(user.id.toString());
-    tg.HapticFeedback.notificationOccurred('success');
-    tg.showAlert("ID nusxalandi!");
-}
-
-async function loadTokens() {
-    const res = await fetch('/api/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg.initData })
-    });
-    const data = await res.json();
-    if (data.ok) {
-        document.getElementById('token-count').innerText = data.tokens;
-    }
-}
-
-// Bo'limlarni almashtirish (Hozircha faqat vizual)
-function changeTab(tabName) {
-    tg.HapticFeedback.impactOccurred('light');
+// changeTab funksiyasini biroz yangilaymiz
+function changeTab(tabName, element) {
+    tg.HapticFeedback.impactOccurred('medium');
     
-    // Barcha nav-item lardan 'active' klassini olib tashlash
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
+    // Active klassini o'zgartirish
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    element.classList.add('active');
 
-    // Bosilganiga 'active' klassini qo'shish
-    const clickedItem = event.currentTarget;
-    clickedItem.classList.add('active');
+    // Sarlavhani o'zgartirish
+    const title = document.getElementById('tab-title');
+    const titles = {
+        'earn': 'PUL ISHLASH',
+        'tasks': 'VAZIFALAR',
+        'home': 'BOSH SAHIFA',
+        'shop': 'DO\'KON',
+        'profile': 'PROFIL'
+    };
+    title.innerText = titles[tabName] || tabName.toUpperCase();
 
-    // O'rtadagi matnni o'zgartirish (test uchun)
-    const mainText = document.querySelector('.placeholder-text h2');
-    mainText.innerText = tabName.toUpperCase() + "...";
+    // MASLAHAT: Agar har bir tabda orqa fon o'zgarishini xohlasangiz:
+    // const lobby = document.getElementById('game-lobby');
+    // if(tabName === 'shop') lobby.style.backgroundImage = "url('yangi_rasm_url')";
 }
-
-loadTokens();
