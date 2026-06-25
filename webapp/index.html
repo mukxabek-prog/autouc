@@ -3,54 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CyberDrop Web App</title>
+    <title>CyberDrop App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome ikonkalari uchun -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div id="app">
-        <!-- Header: Profil ma'lumotlari -->
+        <!-- Profil Header -->
         <header>
-            <div class="user-info" onclick="copyId()">
-                <img id="user-photo" src="https://via.placeholder.com/40" alt="Avatar">
-                <div class="user-text">
+            <div class="profile-box" onclick="copyId()">
+                <img id="user-avatar" src="https://via.placeholder.com/45" alt="Avatar">
+                <div class="user-info">
                     <span id="user-name">Yuklanmoqda...</span>
-                    <span id="user-id">ID: 00000000</span>
+                    <span id="user-id-text">ID: 00000000 <i class="fa-regular fa-copy"></i></span>
                 </div>
-                <i class="fa-regular fa-copy copy-icon"></i>
             </div>
-            <div class="token-badge">
-                <i class="fa-solid fa-coins"></i>
-                <span id="token-balance">0</span>
+            <div class="token-status">
+                <span id="token-count">0</span>
+                <img src="https://cdn-icons-png.flaticon.com/512/5637/5637217.png" width="20" alt="coin">
             </div>
         </header>
 
-        <main>
-            <div class="card main-card">
-                <h3>KUNLIK BONUS</h3>
-                <div class="box-container">
-                    <img src="https://cdn-icons-png.flaticon.com/512/5637/5637217.png" alt="Box" class="floating-box">
-                </div>
-                <p id="status-text">Bugungi dropingizni ochishingiz mumkin</p>
-                <button id="open-btn" onclick="claimDrop()">OCHISH</button>
-                <p id="cooldown-timer" class="hidden"></p>
-            </div>
-
-            <div class="tasks-section">
-                <h4>VAZIFALAR</h4>
-                <div class="task-item">
-                    <div class="task-info">
-                        <span>Kanalga obuna bo'ling</span>
-                        <small>+3 token | bir martalik</small>
-                    </div>
-                    <button class="check-btn" onclick="checkTask()">Tekshirish</button>
-                </div>
+        <!-- Asosiy qism (Placeholder) -->
+        <main id="main-content">
+            <div class="placeholder-text">
+                <h2>Yaqinda...</h2>
+                <p>Bu bo'lim ustida ish olib borilmoqda. <br> Keyingi yangilanishlarni kuting!</p>
             </div>
         </main>
-    </div>
 
+        <!-- Pastki 5 talik Menyusi -->
+        <nav class="bottom-nav">
+            <div class="nav-item" onclick="changeTab('earn')">
+                <img src="https://cdn-icons-png.flaticon.com/512/272/272525.png" alt="earn">
+            </div>
+            <div class="nav-item" onclick="changeTab('tasks')">
+                <img src="https://cdn-icons-png.flaticon.com/512/1062/1062976.png" alt="tasks">
+            </div>
+            <div class="nav-item active" onclick="changeTab('home')">
+                <img src="https://cdn-icons-png.flaticon.com/512/616/616408.png" alt="home" class="main-icon">
+            </div>
+            <div class="nav-item" onclick="changeTab('shop')">
+                <img src="https://cdn-icons-png.flaticon.com/512/3081/3081559.png" alt="shop">
+            </div>
+            <div class="nav-item" onclick="changeTab('settings')">
+                <img src="https://cdn-icons-png.flaticon.com/512/2040/2040504.png" alt="settings">
+            </div>
+        </nav>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
