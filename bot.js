@@ -1327,111 +1327,11 @@ bot.on('message', async (msg) => {
 });
 
 // ========================
-// HTTP API SERVER
+// HTTP + ERROR
 // ========================
-
-// Telegram login ma'lumotlarini tekshirish (xavfsizlik uchun)
-const crypto = require('crypto');
-function verifyTelegramAuth(data) {
-  const { hash, ...rest } = data;
-  const secret = crypto.createHash('sha256').update(BOT_TOKEN).digest();
-  const checkStr = Object.keys(rest).sort().map(k => `${k}=${rest[k]}`).join('\n');
-  const hmac = crypto.createHmac('sha256', secret).update(checkStr).digest('hex');
-  return hmac === hash;
-}
-
-http.createServer((req, res) => {
-  // CORS headers — saytdan so'rov kelishi uchun
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Content-Type', 'application/json');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200); res.end(); return;
-  }
-
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-  const path_ = url.pathname;
-
-  // ---- GET /api/get-balance?tg_id=123456 ----
-  if (req.method === 'GET' && path_ === '/api/get-balance') {
-    const tgId = url.searchParams.get('tg_id');
-    if (!tgId) { res.writeHead(400); res.end(JSON.stringify({ error: 'tg_id kerak' })); return; }
-    const user = getUser(parseInt(tgId));
-    if (!user) { res.writeHead(404); res.end(JSON.stringify({ error: 'Foydalanuvchi topilmadi', tokens: 0, balance: 0 })); return; }
-    res.writeHead(200);
-    res.end(JSON.stringify({ tokens: user.tokens || 0, balance: user.balance || 0, username: user.username, full_name: user.full_name }));
-    return;
-  }
-
-  // ---- POST /api/deduct-tokens ----
-  // Body: { tg_id: 123, amount: 50 }
-  if (req.method === 'POST' && path_ === '/api/deduct-tokens') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { tg_id, amount } = JSON.parse(body);
-        if (!tg_id || !amount) { res.writeHead(400); res.end(JSON.stringify({ error: 'tg_id va amount kerak' })); return; }
-        const ok = deductTokens(parseInt(tg_id), parseInt(amount));
-        if (!ok) { res.writeHead(400); res.end(JSON.stringify({ error: 'Token yetarli emas' })); return; }
-        const user = getUser(parseInt(tg_id));
-        res.writeHead(200);
-        res.end(JSON.stringify({ success: true, tokens: user.tokens || 0 }));
-      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: 'Xato' })); }
-    });
-    return;
-  }
-
-  // ---- POST /api/add-tokens ----
-  // Body: { tg_id: 123, amount: 100 }
-  if (req.method === 'POST' && path_ === '/api/add-tokens') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const { tg_id, amount } = JSON.parse(body);
-        if (!tg_id || !amount) { res.writeHead(400); res.end(JSON.stringify({ error: 'tg_id va amount kerak' })); return; }
-        addTokens(parseInt(tg_id), parseInt(amount));
-        const user = getUser(parseInt(tg_id));
-        res.writeHead(200);
-        res.end(JSON.stringify({ success: true, tokens: user.tokens || 0 }));
-      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: 'Xato' })); }
-    });
-    return;
-  }
-
-  // ---- POST /api/register ----
-  // Telegram login dan keyin foydalanuvchini ro'yxatdan o'tkazish
-  // Body: { id, first_name, last_name, username, photo_url, auth_date, hash }
-  if (req.method === 'POST' && path_ === '/api/register') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const data = JSON.parse(body);
-        // Telegram imzosini tekshirish (xavfsizlik)
-        if (!verifyTelegramAuth(data)) {
-          res.writeHead(403); res.end(JSON.stringify({ error: 'Telegram imzosi noto\'g\'ri' })); return;
-        }
-        const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ');
-        const user = getOrCreateUser(data.id, data.username, fullName);
-        res.writeHead(200);
-        res.end(JSON.stringify({ success: true, tokens: user.tokens || 0, balance: user.balance || 0 }));
-      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: 'Xato' })); }
-    });
-    return;
-  }
-
-  // ---- Asosiy sahifa ----
-  res.writeHead(200);
-  res.end(JSON.stringify({ status: 'ok', message: 'Game Shop Bot API ishlayapti! 🎮' }));
-
-}).listen(PORT, () => console.log(`🌐 API Server port ${PORT} da ishga tushdi`));
-
 bot.on('polling_error', err=>console.error('Polling:',err.message));
 process.on('unhandledRejection', err=>console.error('Unhandled:',err));
+http.createServer((req,res)=>{res.writeHead(200);res.end('Game Shop Bot ishlayapti! 🎮');}).listen(PORT,()=>console.log(`🌐 Port ${PORT}`));
 console.log('🚀 Game Shop Bot ishga tushdi!');
 console.log(`👥 Adminlar: ${ADMIN_IDS.join(', ')}`);
 console.log(`📢 Majburiy kanal: ${CHANNEL}`);
