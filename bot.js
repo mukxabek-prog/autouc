@@ -1,9 +1,10 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const fs   = require('fs');
-const path = require('path');
-const http = require('http');
+const fs      = require('fs');
+const path    = require('path');
+const crypto  = require('crypto');
+const express = require('express');
 
 // ========================
 // CONFIG
@@ -16,8 +17,9 @@ const CHANNEL          = '@bulldrop_n1';
 const CHANNEL_URL      = 'https://t.me/bulldrop_n1';
 const SITE_URL         = 'https://mukxabek-prog.github.io/autouc.html/';
 const CYBERDROP_PHOTO_ID = 'AgACAgIAAxkBAAFNTm5qO-9IhN1DPIgayIm_ZEzNiCbOOgAClCFrG-kE4UlUtpxTskjDlQEAAwIAA3gAAzwE';
-// ⚠️ Bu yerga o'zingizning o'yin/sayt havolangizni qo'ying:
-const CYBERDROP_URL    = 'https://example.com/CHANGE_ME';
+// 🌐 CyberDrop Web App manzili — deploy qilgandan keyin Render bergan domenni shu yerga yozasiz
+// (yoki .env faylida WEBAPP_URL=https://sizning-domen.onrender.com qilib qo'ying)
+const CYBERDROP_URL    = process.env.WEBAPP_URL || 'https://example.com/CHANGE_ME';
 
 if (!BOT_TOKEN) { console.error('❌ BOT_TOKEN topilmadi!'); process.exit(1); }
 
@@ -63,8 +65,8 @@ function saveDB(d) { try { fs.writeFileSync(DB_FILE, JSON.stringify(d,null,2)); 
 // USER
 function getOrCreateUser(tid, username, fullName) {
   const d = loadDB(); const id = String(tid);
-  if (!d.users[id]) d.users[id] = { telegram_id:tid, username:username||null, full_name:fullName||null, balance:0, total_spent:0, joined_at:new Date().toISOString(), used_promos:[], tokens:0, referred_by:null, referral_count:0 };
-  else { if(username) d.users[id].username=username; if(fullName) d.users[id].full_name=fullName; if(!d.users[id].used_promos) d.users[id].used_promos=[]; if(d.users[id].tokens===undefined) d.users[id].tokens=0; if(d.users[id].referred_by===undefined) d.users[id].referred_by=null; if(d.users[id].referral_count===undefined) d.users[id].referral_count=0; }
+  if (!d.users[id]) d.users[id] = { telegram_id:tid, username:username||null, full_name:fullName||null, balance:0, total_spent:0, joined_at:new Date().toISOString(), used_promos:[], tokens:0, referred_by:null, referral_count:0, last_checkin:null, claimed_tasks:[] };
+  else { if(username) d.users[id].username=username; if(fullName) d.users[id].full_name=fullName; if(!d.users[id].used_promos) d.users[id].used_promos=[]; if(d.users[id].tokens===undefined) d.users[id].tokens=0; if(d.users[id].referred_by===undefined) d.users[id].referred_by=null; if(d.users[id].referral_count===undefined) d.users[id].referral_count=0; if(d.users[id].last_checkin===undefined) d.users[id].last_checkin=null; if(!d.users[id].claimed_tasks) d.users[id].claimed_tasks=[]; }
   saveDB(d); return d.users[id];
 }
 function getUser(tid)    { const d=loadDB(); return d.users[String(tid)]||null; }
@@ -94,9 +96,82 @@ function addTokens(tid, amount) {
   saveDB(d);
 }
 function deductTokens(tid, amount) {
-  const d=loadDB(); const id=String(tid);
+  const d = loadDB(); const id = String(tid);
   if(!d.users[id]||(d.users[id].tokens||0)<amount) return false;
   d.users[id].tokens-=amount; saveDB(d); return true;
+}
+
+// ========================
+// CYBERDROP — BEPUL BONUS TIZIMI (gambling EMAS: foydalanuvchi hech narsa tikmaydi,
+// faqat bajargan ish/kutgan vaqt evaziga token oladi. Natija har doim >= 0 bo'ladi)
+// ========================
+const CHECKIN_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 soat
+const CHECKIN_WEIGHTS = [ [1,40], [2,25], [3,20], [4,10], [5,5] ]; // [token, og'irlik]
+const CHANNEL_TASK_REWARD = 3;
+
+function weightedRandom(weights) {
+  const total = weights.reduce((s,w) => s + w[1], 0);
+  let r = Math.random() * total;
+  for (const [val, w] of weights) { if (r < w) return val; r -= w; }
+  return weights[0][0];
+}
+
+function getDailyStatus(user) {
+  if (!user.last_checkin) return { available: true, nextAt: null };
+  const nextAt = new Date(user.last_checkin).getTime() + CHECKIN_COOLDOWN_MS;
+  return { available: Date.now() >= nextAt, nextAt };
+}
+
+function claimDailyCheckin(tid) {
+  const d = loadDB(); const id = String(tid);
+  const u = d.users[id];
+  if (!u) return { ok:false, error:'no_user' };
+  const status = getDailyStatus(u);
+  if (!status.available) return { ok:false, error:'cooldown', nextAt: status.nextAt };
+  const earned = weightedRandom(CHECKIN_WEIGHTS);
+  u.tokens = (u.tokens||0) + earned;
+  u.last_checkin = new Date().toISOString();
+  saveDB(d);
+  return { ok:true, earned, tokens:u.tokens, nextAt: Date.now() + CHECKIN_COOLDOWN_MS };
+}
+
+async function claimChannelTask(tid) {
+  const d = loadDB(); const id = String(tid);
+  const u = d.users[id];
+  if (!u) return { ok:false, error:'no_user' };
+  if (!u.claimed_tasks) u.claimed_tasks = [];
+  if (u.claimed_tasks.includes('channel')) return { ok:false, error:'already_claimed' };
+  const subscribed = await isSubscribed(tid);
+  if (!subscribed) return { ok:false, error:'not_subscribed' };
+  u.claimed_tasks.push('channel');
+  u.tokens = (u.tokens||0) + CHANNEL_TASK_REWARD;
+  saveDB(d);
+  return { ok:true, earned: CHANNEL_TASK_REWARD, tokens:u.tokens };
+}
+
+// ========================
+// TELEGRAM WEB APP — initData TASDIQLASH
+// (Telegramning rasmiy algoritmi: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app)
+// ========================
+function verifyInitData(initData) {
+  try {
+    if (!initData) return null;
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return null;
+    params.delete('hash');
+    const pairs = [];
+    for (const [key, value] of params.entries()) pairs.push(`${key}=${value}`);
+    pairs.sort();
+    const dataCheckString = pairs.join('\n');
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    if (computedHash !== hash) return null;
+    const authDate = parseInt(params.get('auth_date'), 10);
+    if (!authDate || (Date.now()/1000 - authDate) > 86400) return null; // 24 soatdan eski bo'lsa rad etamiz
+    const userRaw = params.get('user');
+    return userRaw ? JSON.parse(userRaw) : null;
+  } catch (e) { return null; }
 }
 
 // REFERAL
@@ -940,22 +1015,19 @@ bot.on('message', async (msg) => {
   if(text===BTN_CYBER) {
     clearState(uid);
     return bot.sendMessage(chatId,
-      `🎮 <b>CyberDrop Game</b>\n\n` +
-      `Assalomu alaykum! Bizning o\'yinimizga xush kelibsiz! 🎉\n\n` +
-      `Bu o\'yinda <b>tokenlaringiz</b> bilan o\'ynab, ularni ko\'paytirishingiz mumkin!\n\n` +
-      `📖 <b>Batafsil yo\'riqnoma:</b>\n\n` +
-      `1️⃣ Saytga kiring va ro\'yxatdan o\'ting\n` +
-      `2️⃣ Tokenlaringizni o\'yinga kiriting\n` +
-      `3️⃣ O\'yin topshiriqlarini bajaring\n` +
-      `4️⃣ Yutgan tokenlaringizni balansga qo\'shing\n` +
-      `5️⃣ Balans orqali UC, Diamond va boshqa valyutalar sotib oling!\n\n` +
-      `💡 <b>Eslatma:</b> O\'yin muntazam yangilanib boradi. Kuzatib boring!\n\n` +
-      `👇 O\'yinni boshlash uchun quyidagi tugmani bosing:`,
+      `🎮 <b>CyberDrop</b>\n\n` +
+      `Assalomu alaykum! Bu yerda <b>bepul bonus tokenlar</b> yutib olishingiz mumkin! 🎉\n\n` +
+      `📖 <b>Qanday ishlaydi:</b>\n\n` +
+      `1️⃣ Har 24 soatda bir marta bepul "drop" ochasiz\n` +
+      `2️⃣ Vazifalarni bajarib qo\'shimcha token olasiz\n` +
+      `3️⃣ Tokenlarni balansga yoki UC/Diamond va boshqa valyutalarga almashtirasiz!\n\n` +
+      `💡 Bu yerda hech narsa tikilmaydi — faqat bonus olasiz.\n\n` +
+      `👇 Ochish uchun tugmani bosing:`,
       {
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🚀 CyberDrop o\'ynash', url: 'https://mukxabek-prog.github.io/autouc.html/' }]
+            [{ text: '🚀 CyberDrop ochish', web_app: { url: CYBERDROP_URL } }]
           ]
         }
       }
@@ -1327,11 +1399,60 @@ bot.on('message', async (msg) => {
 });
 
 // ========================
-// HTTP + ERROR
+// WEB APP API + STATIK SERVER
+// ========================
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'webapp')));
+
+function authFromRequest(req) {
+  const initData = req.body && req.body.initData;
+  return verifyInitData(initData);
+}
+
+app.post('/api/me', async (req, res) => {
+  const tgUser = authFromRequest(req);
+  if (!tgUser) return res.status(401).json({ ok:false, error:'invalid_init_data' });
+  const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ');
+  const user = getOrCreateUser(tgUser.id, tgUser.username, fullName);
+  const status = getDailyStatus(user);
+  res.json({
+    ok: true,
+    tokens: user.tokens || 0,
+    balance: user.balance || 0,
+    full_name: user.full_name,
+    username: user.username,
+    checkin_available: status.available,
+    checkin_next_at: status.nextAt,
+    tasks: { channel: (user.claimed_tasks || []).includes('channel') },
+    channel_url: CHANNEL_URL
+  });
+});
+
+app.post('/api/checkin', (req, res) => {
+  const tgUser = authFromRequest(req);
+  if (!tgUser) return res.status(401).json({ ok:false, error:'invalid_init_data' });
+  const result = claimDailyCheckin(tgUser.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.post('/api/task/channel', async (req, res) => {
+  const tgUser = authFromRequest(req);
+  if (!tgUser) return res.status(401).json({ ok:false, error:'invalid_init_data' });
+  const result = await claimChannelTask(tgUser.id);
+  if (!result.ok) return res.status(400).json(result);
+  res.json(result);
+});
+
+app.get('/', (req, res) => res.send('Game Shop Bot ishlayapti! 🎮'));
+
+// ========================
+// XATOLAR
 // ========================
 bot.on('polling_error', err=>console.error('Polling:',err.message));
 process.on('unhandledRejection', err=>console.error('Unhandled:',err));
-http.createServer((req,res)=>{res.writeHead(200);res.end('Game Shop Bot ishlayapti! 🎮');}).listen(PORT,()=>console.log(`🌐 Port ${PORT}`));
+app.listen(PORT, () => console.log(`🌐 Port ${PORT} (Web App + API shu yerda ishlaydi)`));
 console.log('🚀 Game Shop Bot ishga tushdi!');
 console.log(`👥 Adminlar: ${ADMIN_IDS.join(', ')}`);
 console.log(`📢 Majburiy kanal: ${CHANNEL}`);
