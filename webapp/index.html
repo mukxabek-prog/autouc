@@ -6,12 +6,12 @@
     <title>CyberDrop Web App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome ikonkalari -->
+    <!-- Font Awesome ikonkalari uchun -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div id="app">
-        <!-- Header: Profil ma'lumotlari (Buzilmadi, joyida turibdi) -->
+        <!-- Header: Profil ma'lumotlari -->
         <header>
             <div class="user-info" onclick="copyId()">
                 <img id="user-photo" src="https://via.placeholder.com/40" alt="Avatar">
@@ -27,93 +27,28 @@
             </div>
         </header>
 
-        <!-- Asosiy kontent maydoni -->
-        <main id="main-content">
-            
-            <!-- 1-BO'LIM: G'ILDIRAK -->
-            <div id="section-gildirak" class="tab-content hidden">
-                <div class="card">
-                    <h3>OMAD G'ILDIRAGI</h3>
-                    <div class="wheel-placeholder">
-                        <i class="fa-solid fa-circle-notch fa-spin"></i>
-                    </div>
-                    <p>Aylanadigan charxpalak o'yini shu yerda bo'ladi</p>
-                    <button class="action-btn">AYLANTIRISH</button>
+        <main>
+            <div class="card main-card">
+                <h3>KUNLIK BONUS</h3>
+                <div class="box-container">
+                    <img src="https://cdn-icons-png.flaticon.com/512/5637/5637217.png" alt="Box" class="floating-box">
                 </div>
+                <p id="status-text">Bugungi dropingizni ochishingiz mumkin</p>
+                <button id="open-btn" onclick="claimDrop()">OCHISH</button>
+                <p id="cooldown-timer" class="hidden"></p>
             </div>
 
-            <!-- 2-BO'LIM: CRASH -->
-            <div id="section-crash" class="tab-content hidden">
-                <div class="card">
-                    <h3>CRASH GAME</h3>
-                    <div class="crash-placeholder">
-                        <i class="fa-solid fa-shuttle-space"></i>
+            <div class="tasks-section">
+                <h4>VAZIFALAR</h4>
+                <div class="task-item">
+                    <div class="task-info">
+                        <span>Kanalga obuna bo'ling</span>
+                        <small>+3 token | bir martalik</small>
                     </div>
-                    <p>Raketa parvozini kuzating va tokenlarni ko'paytiring!</p>
-                    <button class="action-btn crash-btn">TIKISH</button>
+                    <button class="check-btn" onclick="checkTask()">Tekshirish</button>
                 </div>
             </div>
-
-            <!-- 3-BO'LIM: MENYU (Kirganda birinchi shu ko'rinadi) -->
-            <div id="section-menyu" class="tab-content">
-                <div class="card main-card">
-                    <h3>KUNLIK BONUS</h3>
-                    <div class="box-container">
-                        <img src="https://cdn-icons-png.flaticon.com/512/5637/5637217.png" alt="Box" class="floating-box">
-                    </div>
-                    <p id="status-text">Bugungi dropingizni ochishingiz mumkin</p>
-                    <button id="open-btn" onclick="claimDrop()">OCHISH</button>
-                    <p id="cooldown-timer" class="hidden"></p>
-                </div>
-            </div>
-
-            <!-- 4-BO'LIM: KEYSLAR -->
-            <div id="section-keyslar" class="tab-content hidden">
-                <div class="card">
-                    <h3>KEYS OCHISH</h3>
-                    <div class="keys-grid">
-                        <div class="key-item"><i class="fa-solid fa-box-open"></i><p>Oddiy Keys</p></div>
-                        <div class="key-item"><i class="fa-solid fa-box-open" style="color: #fbbf24;"></i><p>Oltin Keys</p></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 5-BO'LIM: PROFIL -->
-            <div id="section-profil" class="tab-content hidden">
-                <div class="card">
-                    <h3>SHAXSIY PROFIL</h3>
-                    <div class="profile-details">
-                        <p><i class="fa-solid fa-user"></i> Status: Foydalanuvchi</p>
-                        <p><i class="fa-solid fa-wallet"></i> Jami daromad: O token</p>
-                    </div>
-                </div>
-            </div>
-
         </main>
-
-        <!-- Pasdagi yangi 5 ta bo'limli menyu -->
-        <nav class="bottom-nav">
-            <div class="nav-item" onclick="switchTab('gildirak')">
-                <i class="fa-solid fa-spinner nav-icon"></i>
-                <span>G'ildirak</span>
-            </div>
-            <div class="nav-item" onclick="switchTab('crash')">
-                <i class="fa-solid fa-shuttle-space nav-icon rocket-icon"></i>
-                <span>Crash</span>
-            </div>
-            <div class="nav-item active" onclick="switchTab('menyu')">
-                <i class="fa-solid fa-house nav-icon"></i>
-                <span>Menyu</span>
-            </div>
-            <div class="nav-item" onclick="switchTab('keyslar')">
-                <i class="fa-solid fa-boxes-stacked nav-icon"></i>
-                <span>Keyslar</span>
-            </div>
-            <div class="nav-item" onclick="switchTab('profil')">
-                <i class="fa-solid fa-circle-user nav-icon"></i>
-                <span>Profil</span>
-            </div>
-        </nav>
     </div>
 
     <script src="script.js"></script>
