@@ -265,7 +265,7 @@ const BTN_ACCOUNT = '👤 Mening hisobim';
 const BTN_ORDERS  = '📋 Buyurtmalarim';
 const BTN_SUPPORT = '📞 Yordam';
 const BTN_PROMO   = '🎟 Promokod kiritish';
-const BTN_AI      = '🤖 AI bilan suhbat';
+const BTN_CYBER   = '🎮 CyberDrop Game';
 const BTN_HISOB   = '💸 Pul ishlash';
 
 function mainKeyboard() {
@@ -277,7 +277,7 @@ function mainKeyboard() {
       [BTN_TOPUP,  BTN_ACCOUNT],
       [BTN_ORDERS, BTN_PROMO],
       [BTN_HISOB,  BTN_SUPPORT],
-      [BTN_AI]
+      [BTN_CYBER]
     ],
     resize_keyboard:true, is_persistent:true
   };
@@ -344,7 +344,6 @@ async function sendStart(chatId, from) {
 
 bot.onText(/\/start(.*)/, async (msg, match) => {
   clearState(msg.from.id);
-  delete aiHistories[msg.from.id];
   const from = msg.from;
   const param = (match[1]||'').trim();
 
@@ -409,13 +408,6 @@ bot.on('callback_query', async (query) => {
         try { await bot.editMessageReplyMarkup({inline_keyboard:[]},{chat_id:chatId,message_id:msgId}); } catch(e){}
         return sendSubRequired(chatId);
       }
-    }
-
-    // AI DAN CHIQISH
-    if(data==='exit_ai') {
-      clearState(uid); delete aiHistories[uid];
-      try { await bot.editMessageReplyMarkup({inline_keyboard:[]},{chat_id:chatId,message_id:msgId}); } catch(e){}
-      return bot.sendMessage(chatId,'✅ AI chatdan chiqdingiz.\n\n👇 Pastdagi menyudan tanlang:',{parse_mode:'HTML',reply_markup:mainKeyboard()});
     }
 
     // ORQAGA
@@ -944,17 +936,30 @@ bot.on('message', async (msg) => {
   }
 
   // AI
-  if(text===BTN_AI) {
-    clearState(uid); delete aiHistories[uid];
-    if(!genAI) return bot.sendMessage(chatId,'⚠️ AI hali sozlanmagan.',{parse_mode:'HTML'});
-    setState(uid,{step:'ai_chat'});
-    return bot.sendMessage(chatId,`🤖 <b>AI Yordamchi</b>\n\nSalom! Savolingizni yozing.\n\n<i>Chatdan chiqish uchun tugmani bosing.</i>`,{parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🚪 AI chatdan chiqish',callback_data:'exit_ai'}]]}});
-  }
-  if(state.step==='ai_chat') {
-    if(!text) return;
-    await bot.sendChatAction(chatId,'typing');
-    try { return bot.sendMessage(chatId,await askGemini(uid,text),{parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🚪 AI chatdan chiqish',callback_data:'exit_ai'}]]}}); }
-    catch(e) { return bot.sendMessage(chatId,'⚠️ AI javob bera olmadi.',{reply_markup:{inline_keyboard:[[{text:'🚪 AI chatdan chiqish',callback_data:'exit_ai'}]]}}); }
+  // CYBERDROP GAME
+  if(text===BTN_CYBER) {
+    clearState(uid);
+    return bot.sendMessage(chatId,
+      `🎮 <b>CyberDrop Game</b>\n\n` +
+      `Assalomu alaykum! Bizning o\'yinimizga xush kelibsiz! 🎉\n\n` +
+      `Bu o\'yinda <b>tokenlaringiz</b> bilan o\'ynab, ularni ko\'paytirishingiz mumkin!\n\n` +
+      `📖 <b>Batafsil yo\'riqnoma:</b>\n\n` +
+      `1️⃣ Saytga kiring va ro\'yxatdan o\'ting\n` +
+      `2️⃣ Tokenlaringizni o\'yinga kiriting\n` +
+      `3️⃣ O\'yin topshiriqlarini bajaring\n` +
+      `4️⃣ Yutgan tokenlaringizni balansga qo\'shing\n` +
+      `5️⃣ Balans orqali UC, Diamond va boshqa valyutalar sotib oling!\n\n` +
+      `💡 <b>Eslatma:</b> O\'yin muntazam yangilanib boradi. Kuzatib boring!\n\n` +
+      `👇 O\'yinni boshlash uchun quyidagi tugmani bosing:`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🚀 CyberDrop o\'ynash', url: 'https://mukxabek-prog.github.io/autouc.html/' }]
+          ]
+        }
+      }
+    );
   }
 
   // KATEGORIYA TUGMALARI
