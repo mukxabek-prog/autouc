@@ -443,6 +443,7 @@ bot.on('callback_query', async (query) => {
 
       // Narx
       const finalPrice=product.price;
+      const promoLine='';
       setState(uid,{selectedProduct:pid,step:'enter_id',finalPrice});
 
       if(bal<finalPrice) {
