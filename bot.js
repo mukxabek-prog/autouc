@@ -862,8 +862,24 @@ bot.on('callback_query', async (query) => {
       const req=approveTopup(parseInt(data.replace('adm_ok_','')),uid);
       if(!req) return;
       const newBal=getBalance(req.telegram_id);
-      await bot.editMessageText((message.text||message.caption||'')+'\n\n✅ <b>TASDIQLANDI</b>',{chat_id:chatId,message_id:msgId,parse_mode:'HTML'});
-      await bot.sendMessage(req.telegram_id,`✅ <b>Hisobingiz to\'ldirildi!</b>\n\n💰 Qo\'shildi: <b>${fmt(req.amount)}</b>\n💳 Balans: <b>${fmt(newBal)}</b>\n\nXarid qilishingiz mumkin! 🎮`,{parse_mode:'HTML',reply_markup:mainKeyboard()});
+      // Rasm (photo) yoki matn — ikkalasini ham qo'llab-quvvatlash
+      try {
+        if(message.photo||message.document) {
+          await bot.editMessageCaption(
+            (message.caption||'')+'\n\n✅ <b>TASDIQLANDI</b>',
+            {chat_id:chatId,message_id:msgId,parse_mode:'HTML'}
+          );
+        } else {
+          await bot.editMessageText(
+            (message.text||'')+'\n\n✅ <b>TASDIQLANDI</b>',
+            {chat_id:chatId,message_id:msgId,parse_mode:'HTML'}
+          );
+        }
+      } catch(e) { console.error('Edit xato:', e.message); }
+      await bot.sendMessage(req.telegram_id,
+        `✅ <b>Hisobingiz to\'ldirildi!</b>\n\n💰 Qo\'shildi: <b>${fmt(req.amount)}</b>\n💳 Balans: <b>${fmt(newBal)}</b>\n\nXarid qilishingiz mumkin! 🎮`,
+        {parse_mode:'HTML',reply_markup:mainKeyboard()}
+      );
     }
 
     if(data.startsWith('adm_no_')&&isAdmin(uid)) {
@@ -876,7 +892,13 @@ bot.on('callback_query', async (query) => {
       const order=getOrder(orderId);
       if(!order) return;
       completeOrder(orderId);
-      await bot.editMessageText((message.text||'')+'\n\n✅ <b>BAJARILDI</b>',{chat_id:chatId,message_id:msgId,parse_mode:'HTML'});
+      // Buyurtma xabari matn — editMessageText
+      try {
+        await bot.editMessageText(
+          (message.text||'')+'\n\n✅ <b>BAJARILDI</b>',
+          {chat_id:chatId,message_id:msgId,parse_mode:'HTML'}
+        );
+      } catch(e) { console.error('Edit xato:', e.message); }
       const g=gameInfo(order.product_type);
       let msg2=`✅ <b>Buyurtmangiz bajarildi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${order.product_name}</b>\n`;
       msg2+=order.product_type==='robux'?`👤 Roblox: <b>${order.game_id}</b>\n`:`🆔 ID: <code>${order.game_id}</code>\n`;
@@ -890,8 +912,16 @@ bot.on('callback_query', async (query) => {
       if(!order) return;
       addBalance(order.telegram_id,order.price,`Buyurtma #${orderId} bekor — pul qaytarildi`);
       cancelOrder(orderId);
-      await bot.editMessageText((message.text||'')+'\n\n❌ <b>BEKOR QILINDI — pul qaytarildi</b>',{chat_id:chatId,message_id:msgId,parse_mode:'HTML'});
-      await bot.sendMessage(order.telegram_id,`⚠️ <b>Buyurtma bekor qilindi</b>\n\n📦 #${orderId}\n💰 Pul qaytarildi: <b>${fmt(order.price)}</b>`,{parse_mode:'HTML',reply_markup:mainKeyboard()});
+      try {
+        await bot.editMessageText(
+          (message.text||'')+'\n\n❌ <b>BEKOR QILINDI — pul qaytarildi</b>',
+          {chat_id:chatId,message_id:msgId,parse_mode:'HTML'}
+        );
+      } catch(e) { console.error('Edit xato:', e.message); }
+      await bot.sendMessage(order.telegram_id,
+        `⚠️ <b>Buyurtma bekor qilindi</b>\n\n📦 #${orderId}\n💰 Pul qaytarildi: <b>${fmt(order.price)}</b>`,
+        {parse_mode:'HTML',reply_markup:mainKeyboard()}
+      );
     }
 
   } catch(err) { console.error('Callback xato:',err.message); }
