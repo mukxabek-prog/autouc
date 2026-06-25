@@ -1,94 +1,27 @@
-body {
-    margin: 0; padding: 0;
-    background-color: #000;
-    color: white;
-    font-family: 'Inter', sans-serif;
-    overflow: hidden;
-}
-
-/* Header */
-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 15px;
-    background: rgba(22, 27, 34, 0.7); /* Shaffofroq header */
-    backdrop-filter: blur(10px);
-    position: relative; z-index: 10;
-}
-
-.profile-box { display: flex; align-items: center; gap: 12px; }
-#user-avatar { width: 42px; height: 42px; border-radius: 50%; border: 2px solid #fbbf24; }
-.user-info { display: flex; flex-direction: column; }
-#user-name { font-weight: bold; font-size: 14px; }
-#user-id-text { font-size: 11px; color: #ccc; }
-
-.token-status {
-    background: rgba(0, 0, 0, 0.6); border: 1px solid #fbbf24;
-    padding: 5px 12px; border-radius: 15px;
-    display: flex; align-items: center; gap: 8px;
-    color: #fbbf24; font-weight: 900;
-}
-
-/* ORQA FON RASMI */
-#game-lobby {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100vh;
-    background-image: url('https://w0.peakpx.com/wallpaper/420/123/HD-wallpaper-pubg-new-state-city-mobile-gaming.jpg'); 
-    background-size: cover;
-    background-position: center;
-    display: flex; justify-content: center; align-items: center;
-}
-
-/* Orqa fon rasm ustidan qoraytirish (matnlar ko'rinishi uchun) */
-#game-lobby::before {
-    content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.4);
-}
-
-.center-content { position: relative; z-index: 5; text-align: center; }
-
-.floating-logo {
-    width: 150px;
-    filter: drop-shadow(0 0 15px #fbbf24);
-    animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
-
-#tab-title { font-size: 24px; letter-spacing: 2px; text-shadow: 2px 2px 10px black; }
-
-/* PASTKI MENYU */
-.bottom-nav {
-    position: fixed; bottom: 0; width: 100%;
-    height: 80px; background: rgba(16, 20, 26, 0.9);
-    display: flex; justify-content: space-around; align-items: center;
-    border-top: 1px solid #30363d;
-    padding-bottom: 10px; z-index: 20;
-}
-
-.nav-item {
-    cursor: pointer; transition: 0.3s;
-    display: flex; flex-direction: column; align-items: center;
-}
-
+/* Ikonkalarni biroz yorqinroq qilish */
 .nav-item img {
     width: 32px; height: 32px;
-    filter: grayscale(100%) opacity(0.5); /* Tanlanmaganda xira */
+    filter: brightness(0.6) grayscale(100%); /* Xiraligi kamaytirildi */
+    transition: 0.3s;
 }
 
-/* O'rtadagi asosiy rasm */
-.main-icon { width: 45px !important; height: 45px !important; }
-
-/* Tanlangan menyu */
 .nav-item.active img {
-    filter: none; opacity: 1;
+    filter: brightness(1.2) grayscale(0%); /* Tanlanganda yorqin rang */
     transform: scale(1.2);
 }
 
-.nav-item.active {
-    position: relative;
+/* Orqa fon rasm ko'rinmayotgan bo'lsa (URL buzilgan bo'lishi mumkin) */
+#game-lobby {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100vh;
+    background: #0b0e14 url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000&auto=format&fit=crop') center/cover no-repeat;
+    display: flex; justify-content: center; align-items: center;
 }
 
-/* Tanlangan menyu ustidagi chiziq yoki effekt */
-.nav-item.active::after {
-    content: ""; position: absolute; top: -10px; width: 30px; height: 3px;
-    background: #fbbf24; border-radius: 10px; box-shadow: 0 0 10px #fbbf24;
+/* Header dizayni */
+header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 15px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    position: relative; z-index: 100;
 }
