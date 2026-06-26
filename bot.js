@@ -12,7 +12,7 @@ const BOT_TOKEN        = process.env.BOT_TOKEN;
 const ADMIN_IDS        = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(Boolean);
 const GEMINI_KEY       = process.env.GEMINI_API_KEY;
 const PORT             = process.env.PORT || 3000;
-const CHANNEL          = '@bulldrop_n1';
+const CHANNEL          = '@auto_uc';
 const CHANNEL_URL      = 'https://t.me/@auto_uc';
 const SITE_URL         = 'https://mukxabek-prog.github.io/autouc.html/';
 const CYBERDROP_PHOTO_ID = 'AgACAgIAAxkBAAFNTm5qO-9IhN1DPIgayIm_ZEzNiCbOOgAClCFrG-kE4UlUtpxTskjDlQEAAwIAA3gAAzwE';
