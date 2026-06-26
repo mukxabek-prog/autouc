@@ -41,9 +41,7 @@ const DEFAULT_DB = {
     uc:         [ {id:1,type:'uc',name:'60 UC',price:12500},{id:2,type:'uc',name:'325 UC',price:60000},{id:3,type:'uc',name:'660 UC',price:120000},{id:4,type:'uc',name:'1800 UC',price:290000},{id:5,type:'uc',name:'3850 UC',price:575000},{id:6,type:'uc',name:'8100 UC',price:1130000},{id:34,type:'uc',name:'16200 UC',price:2265000},{id:35,type:'uc',name:'24300 UC',price:3400000},{id:36,type:'uc',name:'32400 UC',price:4550000},{id:37,type:'uc',name:'40500 UC',price:5770000} ],
     popularity: [ {id:7,type:'popularity',name:'20K PP',price:20000},{id:8,type:'popularity',name:'50K PP',price:50000},{id:9,type:'popularity',name:'100K PP',price:90000},{id:10,type:'popularity',name:'150K PP',price:140000},{id:38,type:'popularity',name:'200K PP',price:185000} ],
     diamond:    [ {id:11,type:'diamond',name:'100 Diamond',price:18000},{id:12,type:'diamond',name:'310 Diamond',price:52000},{id:13,type:'diamond',name:'520 Diamond',price:85000},{id:14,type:'diamond',name:'1060 Diamond',price:165000},{id:15,type:'diamond',name:'2180 Diamond',price:330000},{id:16,type:'diamond',name:'5600 Diamond',price:820000} ],
-    gems:       [ {id:17,type:'gems',name:'80 Gems',price:12000},{id:18,type:'gems',name:'500 Gems',price:65000},{id:19,type:'gems',name:'1200 Gems',price:150000},{id:20,type:'gems',name:'2500 Gems',price:300000},{id:21,type:'gems',name:'6500 Gems',price:750000},{id:22,type:'gems',name:'14000 Gems',price:1500000} ],
-    mlbb:       [ {id:23,type:'mlbb',name:'86 Diamonds',price:20000},{id:24,type:'mlbb',name:'172 Diamonds',price:38000},{id:25,type:'mlbb',name:'257 Diamonds',price:55000},{id:26,type:'mlbb',name:'706 Diamonds',price:145000},{id:27,type:'mlbb',name:'1412 Diamonds',price:280000},{id:28,type:'mlbb',name:'2195 Diamonds',price:420000} ],
-    robux:      [ {id:29,type:'robux',name:'400 Robux',price:45000},{id:30,type:'robux',name:'800 Robux',price:85000},{id:31,type:'robux',name:'1700 Robux',price:170000},{id:32,type:'robux',name:'4500 Robux',price:420000},{id:33,type:'robux',name:'10000 Robux',price:900000} ]
+    mlbb:       [ {id:23,type:'mlbb',name:'86 Diamonds',price:20000},{id:24,type:'mlbb',name:'172 Diamonds',price:38000},{id:25,type:'mlbb',name:'257 Diamonds',price:55000},{id:26,type:'mlbb',name:'706 Diamonds',price:145000},{id:27,type:'mlbb',name:'1412 Diamonds',price:280000},{id:28,type:'mlbb',name:'2195 Diamonds',price:420000} ]
   }
 };
 
@@ -118,9 +116,7 @@ const TOKEN_EXCHANGE = {
   uc:         { product: '60 UC',       type: 'uc',         tokens: 50 },
   popularity: { product: '20K PP',      type: 'popularity', tokens: 20 },
   diamond:    { product: '100 Diamond', type: 'diamond',    tokens: 20 },
-  gems:       { product: '80 Gems',     type: 'gems',       tokens: 15 },
   mlbb:       { product: '86 Diamonds', type: 'mlbb',       tokens: 22 },
-  robux:      { product: '400 Robux',   type: 'robux',      tokens: 30 },
 };
 
 // TOPUP
@@ -226,9 +222,7 @@ function gameInfo(type) {
     uc:        {name:'PUBG Mobile',   emoji:'🎮',currency:'UC',       idLabel:'PUBG ID (faqat raqam, max 15)'},
     popularity:{name:'PUBG Mobile',   emoji:'⭐',currency:'Popularity',idLabel:'PUBG ID (faqat raqam, max 15)'},
     diamond:   {name:'Free Fire',     emoji:'🔥',currency:'Diamond',  idLabel:'Free Fire ID (faqat raqam)'},
-    gems:      {name:'Clash of Clans',emoji:'⚔️',currency:'Gems',     idLabel:'CoC Tag (masalan: #ABC1234)'},
-    mlbb:      {name:'Mobile Legends',emoji:'🌟',currency:'Diamond',  idLabel:'MLBB ID (faqat raqam)'},
-    robux:     {name:'Roblox',        emoji:'🟥',currency:'Robux',    idLabel:'Roblox username'}
+    mlbb:      {name:'Mobile Legends',emoji:'🌟',currency:'Diamond',  idLabel:'MLBB ID (faqat raqam)'}
   }[type]||{name:type,emoji:'🎮',currency:type,idLabel:'ID'};
 }
 
@@ -256,9 +250,7 @@ const CAT_BTNS = {
   '🎮 PUBG — UC':               'uc',
   '⭐ PUBG — Popularity':       'popularity',
   '🔥 Free Fire — Diamond':     'diamond',
-  '⚔️ Clash of Clans — Gems':   'gems',
-  '🌟 Mobile Legends — Diamond':'mlbb',
-  '🟥 Roblox — Robux':          'robux'
+  '🌟 Mobile Legends — Diamond':'mlbb'
 };
 const BTN_TOPUP   = '💰 Hisobni to\'ldirish';
 const BTN_ACCOUNT = '👤 Mening hisobim';
@@ -272,8 +264,7 @@ function mainKeyboard() {
   return {
     keyboard:[
       ['🎮 PUBG — UC',           '⭐ PUBG — Popularity'],
-      ['🔥 Free Fire — Diamond', '⚔️ Clash of Clans — Gems'],
-      ['🌟 Mobile Legends — Diamond','🟥 Roblox — Robux'],
+      ['🔥 Free Fire — Diamond', '🌟 Mobile Legends — Diamond'],
       [BTN_TOPUP,  BTN_ACCOUNT],
       [BTN_ORDERS, BTN_PROMO],
       [BTN_HISOB,  BTN_SUPPORT],
@@ -337,7 +328,7 @@ async function sendStart(chatId, from) {
   const VOICE_ID = 'AwACAgQAAxkBAAFNSUhqO707mvf9vSUCsKHiMP0wyL_VrAACwgQAAv3WxFJ8Ar5yX_dhtTwE';
   try { await bot.sendVoice(chatId, VOICE_ID); } catch(e) {}
   await bot.sendMessage(chatId,
-    `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & Popularity\n🔥 Free Fire — Diamond\n⚔️ Clash of Clans — Gems\n🌟 Mobile Legends — Diamond\n🟥 Roblox — Robux\n\n💳 To\'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`,
+    `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & Popularity\n🔥 Free Fire — Diamond\n🌟 Mobile Legends — Diamond\n\n💳 To\'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`,
     {parse_mode:'HTML',reply_markup:mainKeyboard()}
   );
 }
@@ -467,7 +458,7 @@ bot.on('callback_query', async (query) => {
       const orderId=createOrder(uid,product.type,product.name,finalPrice,product.price,state.gameId,state.gameNick,promoUsed);
       clearState(uid);
       const newBal=getBalance(uid);
-      const details=product.type==='robux'?`👤 Roblox Username: <b>${state.gameId}</b>`:`🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick||'-'}</b>`;
+      const details=`🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick||'-'}</b>`;
       const promoLine=promoUsed?`\n🎟 Promokod: <b>${promoUsed}</b>`:'';
 
       await bot.editMessageText(
@@ -478,7 +469,7 @@ bot.on('callback_query', async (query) => {
       const fromUser=from.username?`@${from.username}`:from.first_name;
       for(const adminId of ADMIN_IDS) {
         let adminMsg=`🛒 <b>Yangi buyurtma #${orderId}</b>\n\n👤 ${fromUser} (${uid})\n${g.emoji} <b>${g.name} — ${product.name}</b>\n`;
-        adminMsg+=product.type==='robux'?`👤 Roblox: <code>${state.gameId}</code>\n`:`🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick||'-'}</b>\n`;
+        adminMsg+=`🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick||'-'}</b>\n`;
         if(promoUsed) adminMsg+=`🎟 Promo: <b>${promoUsed}</b> (-${state.activePromo?.discount||0}%)\n`;
         adminMsg+=`💰 <b>${fmt(finalPrice)}</b>${promoUsed?` (asl: ${fmt(product.price)})` : ''}`;
         await bot.sendMessage(adminId,adminMsg,{parse_mode:'HTML',reply_markup:aordBtn(orderId)});
@@ -783,9 +774,7 @@ bot.on('callback_query', async (query) => {
           [{text:'🎮 PUBG — UC (50 token)', callback_data:'tex_uc'}],
           [{text:'🔥 Free Fire — Diamond (20 token)', callback_data:'tex_diamond'}],
           [{text:'⭐ PUBG — Popularity (20 token)', callback_data:'tex_popularity'}],
-          [{text:'⚔️ Clash of Clans — Gems (15 token)', callback_data:'tex_gems'}],
           [{text:'🌟 Mobile Legends (22 token)', callback_data:'tex_mlbb'}],
-          [{text:'🟥 Roblox — Robux (30 token)', callback_data:'tex_robux'}],
           [{text:'🔙 Orqaga', callback_data:'back_hisob'}]
         ]}}
       );
@@ -831,7 +820,7 @@ bot.on('callback_query', async (query) => {
       const orderId = createOrder(uid, gameType, ex.product, 0, 0, state.texId, state.texNick||'-', null);
       clearState(uid);
       const newTokens = getTokens(uid);
-      const details = gameType==='robux' ? `👤 Roblox: <b>${state.texId}</b>` : `🆔 ID: <code>${state.texId}</code>\n👤 Nik: <b>${state.texNick||'-'}</b>`;
+      const details = `🆔 ID: <code>${state.texId}</code>\n👤 Nik: <b>${state.texNick||'-'}</b>`;
       await bot.editMessageText(
         `✅ <b>Token bilan buyurtma qabul qilindi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${ex.product}</b>\n${details}\n🪙 Sarflandi: <b>${ex.tokens} token</b>\n🪙 Qolgan: <b>${newTokens} token</b>\n\n⏳ Admin tasdig'ini kuting (5-15 daqiqa)`,
         {chat_id:chatId, message_id:msgId, parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu', callback_data:'back_main'}]]}}
@@ -839,7 +828,7 @@ bot.on('callback_query', async (query) => {
       const fromUser = from.username ? `@${from.username}` : from.first_name;
       for(const adminId of ADMIN_IDS) {
         let adminMsg=`🪙 <b>TOKEN buyurtma #${orderId}</b>\n\n👤 ${fromUser} (${uid})\n${g.emoji} <b>${g.name} — ${ex.product}</b>\n`;
-        adminMsg += gameType==='robux' ? `👤 Roblox: <code>${state.texId}</code>\n` : `🆔 ID: <code>${state.texId}</code>\n👤 Nik: <b>${state.texNick||'-'}</b>\n`;
+        adminMsg += `🆔 ID: <code>${state.texId}</code>\n👤 Nik: <b>${state.texNick||'-'}</b>\n`;
         adminMsg += `🪙 To'lov: <b>${ex.tokens} token</b> (Bepul)`;
         await bot.sendMessage(adminId, adminMsg, {parse_mode:'HTML', reply_markup:aordBtn(orderId)}).catch(()=>{});
       }
@@ -893,7 +882,7 @@ bot.on('callback_query', async (query) => {
       } catch(e) { console.error('Edit xato:', e.message); }
       const g=gameInfo(order.product_type);
       let msg2=`✅ <b>Buyurtmangiz bajarildi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${order.product_name}</b>\n`;
-      msg2+=order.product_type==='robux'?`👤 Roblox: <b>${order.game_id}</b>\n`:`🆔 ID: <code>${order.game_id}</code>\n`;
+      msg2+=`🆔 ID: <code>${order.game_id}</code>\n`;
       msg2+=`\nO\'yiningizni tekshiring! 🎮\nRahmat! ❤️`;
       await bot.sendMessage(order.telegram_id,msg2,{parse_mode:'HTML',reply_markup:mainKeyboard()});
     }
@@ -1063,26 +1052,9 @@ bot.on('message', async (msg) => {
       const product=getProductById(state.selectedProduct);
       if(!product) return;
 
-      if(product.type==='robux') {
-        const nik=text.trim();
-        if(nik.length<3||nik.length>20) return bot.sendMessage(chatId,'❌ Roblox username 3-20 ta belgidan iborat!');
-        const finalPrice=(state.finalPrice!==undefined&&state.finalPrice!==null)?state.finalPrice:product.price;
-        const g=gameInfo('robux');
-        setState(uid,{gameId:nik,step:'confirm_step'});
-        const promoLine=state.activePromo?`\n🎟 Promokod: ${state.activePromo.code} (-${state.activePromo.discount}%)`:'';
-        return bot.sendMessage(chatId,
-          `📋 <b>Buyurtma ma\'lumotlari:</b>\n\n${g.emoji} <b>${g.name} — ${product.name}</b>\n👤 Roblox Username: <b>${nik}</b>\n💰 Narx: <b>${fmt(finalPrice)}</b>${promoLine}\n\nTasdiqlaysizmi?`,
-          {parse_mode:'HTML',reply_markup:confirmBtn(state.selectedProduct)}
-        );
-      }
-
       let cleanId=text.trim().replace(/\s+/g,'');
-      if(product.type==='gems') {
-        if(!cleanId.startsWith('#')) cleanId='#'+cleanId;
-      } else {
-        if(!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId,`❌ Faqat raqamlar kiriting!\nMasalan: <code>512345678</code>`,{parse_mode:'HTML'});
-        if(cleanId.length>15) return bot.sendMessage(chatId,'❌ ID maksimum 15 ta raqam!');
-      }
+      if(!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId,`❌ Faqat raqamlar kiriting!\nMasalan: <code>512345678</code>`,{parse_mode:'HTML'});
+      if(cleanId.length>15) return bot.sendMessage(chatId,'❌ ID maksimum 15 ta raqam!');
       setState(uid,{gameId:cleanId,step:'enter_nick'});
       return bot.sendMessage(chatId,`✅ ID: <code>${cleanId}</code>\n\n👤 Endi <b>nikneymingizni</b> yozing:`,{parse_mode:'HTML',reply_markup:cancelBtn()});
     }
@@ -1110,25 +1082,9 @@ bot.on('message', async (msg) => {
       const gameType = state.texGame;
       const g = gameInfo(gameType);
       let cleanId = text.trim().replace(/\s+/g,'');
-      if(gameType==='gems') {
-        if(!cleanId.startsWith('#')) cleanId='#'+cleanId;
-      } else if(gameType==='robux') {
-        if(cleanId.length<3||cleanId.length>20) return bot.sendMessage(chatId,'❌ Roblox username 3-20 ta belgidan iborat!');
-      } else {
-        if(!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId,`❌ Faqat raqamlar kiriting!`,{parse_mode:'HTML'});
-        if(cleanId.length>15) return bot.sendMessage(chatId,'❌ ID maksimum 15 ta raqam!');
-      }
+      if(!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId,`❌ Faqat raqamlar kiriting!`,{parse_mode:'HTML'});
+      if(cleanId.length>15) return bot.sendMessage(chatId,'❌ ID maksimum 15 ta raqam!');
       setState(uid, {...state, texId:cleanId, step:'tex_enter_nick'});
-      if(gameType==='robux') {
-        // Robux uchun nick shart emas, to'g'ri tasdiqlash
-        setState(uid, {...getState(uid), step:'tex_confirm'});
-        return bot.sendMessage(chatId,
-          `📋 <b>Token almashtirish:</b>\n\n${g.emoji} <b>${g.name} — ${ex.product}</b>\n👤 Username: <b>${cleanId}</b>\n🪙 Sarflanadi: <b>${ex.tokens} token</b>\n\nTasdiqlaysizmi?`,
-          {parse_mode:'HTML', reply_markup:{inline_keyboard:[
-            [{text:'✅ Tasdiqlash', callback_data:'tex_confirm'},{text:'❌ Bekor', callback_data:'token_exchange'}]
-          ]}}
-        );
-      }
       return bot.sendMessage(chatId,`✅ ID: <code>${cleanId}</code>\n\n👤 Endi <b>nikneymingizni</b> yozing:`,{parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'❌ Bekor', callback_data:'token_exchange'}]]}});
     }
 
