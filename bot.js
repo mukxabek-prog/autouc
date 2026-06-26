@@ -247,10 +247,10 @@ async function askGemini(uid, msg) {
 // KEYBOARDS
 // ========================
 const CAT_BTNS = {
-  '🎮 PUBG':               'uc',
-  '⭐ papulyarka':       'popularity',
-  '🔥 Free Fire ':     'diamond',
-  '🌟 Mobile Legends':'mlbb'
+  '🎮 PUBG — UC':               'uc',
+  '⭐ PUBG — Popularity':       'popularity',
+  '🔥 Free Fire — Diamond':     'diamond',
+  '🌟 Mobile Legends — Diamond':'mlbb'
 };
 const BTN_TOPUP   = '💰 Hisobni to\'ldirish';
 const BTN_ACCOUNT = '👤 Mening hisobim';
@@ -263,8 +263,8 @@ const BTN_HISOB   = '💸 Pul ishlash';
 function mainKeyboard() {
   return {
     keyboard:[
-      ['🎮 PUBG ',           '⭐ Popularity'],
-      ['🔥 Free Fire', '🌟 Mobile Legends],
+      ['🎮 PUBG — UC',           '⭐ PUBG — Popularity'],
+      ['🔥 Free Fire — Diamond', '🌟 Mobile Legends — Diamond'],
       [BTN_TOPUP,  BTN_ACCOUNT],
       [BTN_ORDERS, BTN_PROMO],
       [BTN_HISOB,  BTN_SUPPORT],
@@ -1291,3 +1291,5 @@ http.createServer((req,res)=>{res.writeHead(200);res.end('Game Shop Bot ishlayap
 console.log('🚀 Game Shop Bot ishga tushdi!');
 console.log(`👥 Adminlar: ${ADMIN_IDS.join(', ')}`);
 console.log(`📢 Majburiy kanal: ${CHANNEL}`);
+
+
