@@ -410,10 +410,10 @@ const MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','S
 // KEYBOARDS
 // ========================
 const CAT_BTNS = {
-  '🎮 PUBG — UC':               'uc',
-  '⭐ PUBG — Popularity':       'popularity',
-  '🔥 Free Fire — Diamond':     'diamond',
-  '🌟 Mobile Legends — Diamond':'mlbb'
+  '🎮 PUBG':               'uc',
+  '⭐ Popularity':       'popularity',
+  '🔥 Free Fire':     'diamond',
+  '🌟 Mobile Legends':'mlbb'
 };
 const BTN_TOPUP   = "💰 Hisobni to'ldirish";
 const BTN_ACCOUNT = '👤 Mening hisobim';
@@ -426,8 +426,8 @@ const BTN_TURNIR  = '🏆 Turnir';
 function mainKeyboard() {
   return {
     keyboard:[
-      ['🎮 PUBG — UC',           '⭐ PUBG — Popularity'],
-      ['🔥 Free Fire — Diamond', '🌟 Mobile Legends — Diamond'],
+      ['🎮 PUBG ',           '⭐ Popularity'],
+      ['🔥 Free Fire ', '🌟 Mobile Legends '],
       [BTN_TOPUP,  BTN_ACCOUNT],
       [BTN_ORDERS, BTN_PROMO],
       [BTN_HISOB,  BTN_SUPPORT],
