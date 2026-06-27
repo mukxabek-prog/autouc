@@ -16,3 +16,4 @@
   },
   "license": "ISC"
 }
+npm install mongodb dotenv
