@@ -11,7 +11,7 @@ const { MongoClient } = require('mongodb');
 const BOT_TOKEN   = process.env.BOT_TOKEN;
 const ADMIN_IDS   = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim())).filter(Boolean);
 const PORT        = process.env.PORT || 3000;
-const MONGO_URL   = process.env.MONGO_URL;mongodb+srv://muhammadjon:mukxabek2010@cluster0.9wjrn8y.mongodb.net/?appName=Cluster0mongodb+srv://muhammadjon:mukxabek2010@cluster0.9wjrn8y.mongodb.net/?appName=Cluster0
+const MONGO_URL   = process.env.MONGO_URL;mongodb+srv://muhammadjon:mukxabek2010@cluster0.9wjrn8y.mongodb.net/?appName=Cluster0
 const CHANNEL     = '@auto_uc';
 const CHANNEL_URL = 'https://t.me/auto_uc';
 
