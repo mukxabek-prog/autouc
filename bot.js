@@ -81,6 +81,15 @@ async function connectDB() {
     await db.collection('counters').insertOne({ _id: 'topup_id', seq: 1 });
   if (!await db.collection('counters').findOne({ _id: 'tournament_id' }))
     await db.collection('counters').insertOne({ _id: 'tournament_id', seq: 1 });
+
+  // ID si yo'q eski turnirlarga avtomatik ID berish
+  const tournamentsNoId = await db.collection('tournaments')
+    .find({ $or: [ { id: { $exists: false } }, { id: null } ] }).toArray();
+  for (const t of tournamentsNoId) {
+    const newId = await getNextId('tournament_id');
+    await db.collection('tournaments').updateOne({ _id: t._id }, { $set: { id: newId } });
+  }
+  if (tournamentsNoId.length) console.log(`✅ ${tournamentsNoId.length} ta eski turnirga ID berildi`);
 }
 
 async function getNextId(name) {
@@ -908,8 +917,22 @@ bot.on('callback_query', async (query) => {
       return bot.sendMessage(chatId,`✏️ Tahrirlash kerak bo'lgan turnir ID sini kiriting:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_tournaments'}]]}});
     }
     if(data==='adm_t_delete'&&isAdmin(uid)) {
+      const all=await db.collection('tournaments').find({}).toArray();
+      if(!all.length) return bot.editMessageText("🏆 Hali turnirlar yo'q.",{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🔙 Orqaga',callback_data:'adm_tournaments'}]]}});
+      const btns=all.map(t=>[{text:`${t.is_active?'✅':'❌'} #${t.id} — ${t.name}`,callback_data:`adm_t_delete_pick_${t.id}`}]);
+      btns.push([{text:'✏️ ID raqamini qo\'lda yozish',callback_data:'adm_t_delete_manual'}]);
+      btns.push([{text:'🔙 Orqaga',callback_data:'adm_tournaments'}]);
+      return bot.editMessageText(`🗑 <b>O'chirish uchun turnirni tanlang:</b>`,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:btns}});
+    }
+    if(data==='adm_t_delete_manual'&&isAdmin(uid)) {
       setState(uid,{step:'adm_t_delete_id'});
       return bot.sendMessage(chatId,`🗑 O'chirilishi kerak bo'lgan turnir ID sini kiriting:`,{reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'adm_tournaments'}]]}});
+    }
+    if(data.startsWith('adm_t_delete_pick_')&&isAdmin(uid)) {
+      const tid2=parseInt(data.replace('adm_t_delete_pick_',''));
+      const t=await getTournament(tid2);
+      if(!t) return bot.editMessageText(`❌ Turnir topilmadi: #${tid2}`,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🔙 Orqaga',callback_data:'adm_tournaments'}]]}});
+      return bot.editMessageText(`⚠️ <b>${t.name}</b> turnirini o'chirmoqchimisiz?\n\n👥 Qatnashchilar: ${t.participants.length} ta`,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:"🗑 Ha, o'chirish",callback_data:`adm_t_confirm_del_${tid2}`},{text:"❌ Yo'q",callback_data:'adm_tournaments'}]]}});
     }
     if(data.startsWith('adm_t_confirm_del_')&&isAdmin(uid)) {
       const tid2=parseInt(data.replace('adm_t_confirm_del_',''));
