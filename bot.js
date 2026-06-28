@@ -446,12 +446,15 @@ function mainKeyboard() {
   };
 }
 
-function productsMenu(products) {
+function productsMenu(products, type) {
   const rows=[];
   for(let i=0;i<products.length;i+=2){
     const row=[{text:products[i].name+' — '+fmt(products[i].price), callback_data:'product_'+products[i].id}];
     if(products[i+1]) row.push({text:products[i+1].name+' — '+fmt(products[i+1].price), callback_data:'product_'+products[i+1].id});
     rows.push(row);
+  }
+  if(type==='popularity') {
+    rows.push([{text:'✏️ Boshqa PP miqdori', callback_data:'popularity_custom'}]);
   }
   rows.push([{text:'🔙 Orqaga', callback_data:'back_main'}]);
   return {inline_keyboard:rows};
@@ -497,7 +500,7 @@ async function sendPayment(chatId, msgId, amount, edit) {
 // ========================
 async function sendStart(chatId, from) {
   await getOrCreateUser(from.id, from.username, [from.first_name,from.last_name].filter(Boolean).join(' '));
-  const photoPath = path.join(__dirname, 'menustart.png');
+  const photoPath = path.join(__dirname, 'start.jpg');
   const caption = `👋 Salom, <b>${from.first_name}</b>!\n\n🎮 <b>Game Shop</b> ga xush kelibsiz!\n\n🎮 PUBG Mobile — UC & Popularity\n🔥 Free Fire — Diamond\n🌟 Mobile Legends — Diamond\n\n💳 To'lov admin orqali tasdiqlanadi.\n⚡ Tez va ishonchli yetkazib berish!\n\n👇 Pastdagi menyudan tanlang:`;
   try {
     if(fs.existsSync(photoPath)) {
@@ -553,6 +556,22 @@ bot.on('callback_query', async (query) => {
       }
     }
 
+    if(data==='popularity_custom_buy') {
+      const state = getState(uid);
+      if(!state.customPP||!state.customPrice) return;
+      const bal = await getBalance(uid);
+      if(bal < state.customPrice) {
+        return bot.editMessageText(`❌ Balans yetarli emas!\n\n💰 Kerak: <b>${fmt(state.customPrice)}</b>\n💳 Balans: <b>${fmt(bal)}</b>`,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:"💰 To'ldirish",callback_data:'topup_menu'}],[{text:'🔙 Orqaga',callback_data:'back_main'}]]}});
+      }
+      setState(uid,{...state, step:'popularity_custom_id'});
+      return bot.editMessageText(`⭐ <b>${state.customPP.toLocaleString()} PP</b>\n\n📝 PUBG Mobile ID ingizni kiriting:`,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'back_main'}]]}});
+    }
+
+    if(data==='popularity_custom') {
+      setState(uid,{step:'popularity_custom_pp'});
+      return bot.sendMessage(chatId,`⭐ <b>Boshqa PP miqdori</b>\n\nQancha PP xohlaysiz? Raqamni yozing:\n\n💡 Masalan: <code>30000</code> yoki <code>75000</code>`,{parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'back_main'}]]}});
+    }
+
     if(data==='back_main') {
       clearState(uid);
       try { await bot.editMessageText('🎮 <b>Game Shop</b>\n\n👇 Pastdagi menyudan tanlang',{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[]}}); } catch(e){}
@@ -562,7 +581,7 @@ bot.on('callback_query', async (query) => {
     if(data.startsWith('buy_')) {
       const type=data.replace('buy_','');
       const g=gameInfo(type);
-      return bot.editMessageText(`${g.emoji} <b>${g.name}</b>\n\nPaket tanlang:`,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:productsMenu(await getProducts(type))});
+      return bot.editMessageText(`${g.emoji} <b>${g.name}</b>\n\nPaket tanlang:`,{chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:productsMenu(await getProducts(type), type)});
     }
 
     if(data.startsWith('product_')) {
@@ -596,10 +615,18 @@ bot.on('callback_query', async (query) => {
       const orderId=await createOrder(uid,product.type,product.name,finalPrice,product.price,state.gameId,state.gameNick,null);
       clearState(uid);
       const newBal=await getBalance(uid);
-      await bot.editMessageText(
-        `✅ <b>Buyurtma qabul qilindi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${product.name}</b>\n🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick||'-'}</b>\n💰 To'langan: <b>${fmt(finalPrice)}</b>\n💳 Qolgan: <b>${fmt(newBal)}</b>\n\n⏳ <b>Admin tasdig'ini kuting (5-15 daqiqa)</b>`,
-        {chat_id:chatId,message_id:msgId,parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu',callback_data:'back_main'}]]}}
-      );
+      const raxmatPath = path.join(__dirname, 'raxmat.jpg');
+      const orderConfirmText = `✅ <b>Buyurtma qabul qilindi!</b>\n\n📦 #${orderId}\n${g.emoji} ${g.name}: <b>${product.name}</b>\n🆔 ID: <code>${state.gameId}</code>\n👤 Nik: <b>${state.gameNick||'-'}</b>\n💰 To'langan: <b>${fmt(finalPrice)}</b>\n💳 Qolgan: <b>${fmt(newBal)}</b>\n\n⏳ <b>Admin tasdig'ini kuting (5-15 daqiqa)</b>`;
+      try { await bot.editMessageReplyMarkup({inline_keyboard:[]},{chat_id:chatId,message_id:msgId}); } catch(e){}
+      try {
+        if(fs.existsSync(raxmatPath)) {
+          await bot.sendPhoto(chatId, fs.createReadStream(raxmatPath), {caption:orderConfirmText, parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu',callback_data:'back_main'}]]}});
+        } else {
+          await bot.sendMessage(chatId, orderConfirmText, {parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu',callback_data:'back_main'}]]}});
+        }
+      } catch(e) {
+        await bot.sendMessage(chatId, orderConfirmText, {parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu',callback_data:'back_main'}]]}});
+      }
       const fromUser=from.username?`@${from.username}`:from.first_name;
       for(const adminId of ADMIN_IDS) {
         await bot.sendMessage(adminId,
@@ -959,7 +986,7 @@ bot.on('message', async (msg) => {
   try {
     if(text&&CAT_BTNS[text]) {
       clearState(uid); const type=CAT_BTNS[text]; const g=gameInfo(type);
-      return bot.sendMessage(chatId,`${g.emoji} <b>${g.name}</b>\n\nPaket tanlang:`,{parse_mode:'HTML',reply_markup:productsMenu(await getProducts(type))});
+      return bot.sendMessage(chatId,`${g.emoji} <b>${g.name}</b>\n\nPaket tanlang:`,{parse_mode:'HTML',reply_markup:productsMenu(await getProducts(type), type)});
     }
 
     if(text===BTN_TOPUP) {
@@ -1013,6 +1040,62 @@ bot.on('message', async (msg) => {
     }
 
     // STATE HANDLERS
+    if(state.step==='popularity_custom_id') {
+      if(!text) return;
+      let cleanId = text.trim().replace(/\s+/g,'');
+      if(!/^\d+$/.test(cleanId)) return bot.sendMessage(chatId,'❌ Faqat raqamlar kiriting!');
+      if(cleanId.length>15) return bot.sendMessage(chatId,'❌ ID maksimum 15 ta raqam!');
+      setState(uid,{...state, customGameId: cleanId, step:'popularity_custom_nick'});
+      return bot.sendMessage(chatId,`✅ ID: <code>${cleanId}</code>\n\n👤 Nikneymingizni yozing:`,{parse_mode:'HTML',reply_markup:{inline_keyboard:[[{text:'❌ Bekor',callback_data:'back_main'}]]}});
+    }
+
+    if(state.step==='popularity_custom_nick') {
+      if(!text||text.trim().length<2) return bot.sendMessage(chatId,"⚠️ Nikneym noto'g'ri!");
+      const nik = text.trim().slice(0,30);
+      const deducted = await deductBalance(uid, state.customPrice, `${state.customPP.toLocaleString()} PP xaridi`);
+      if(!deducted) return bot.sendMessage(chatId,'❌ Balans yetarli emas!',{reply_markup:mainKeyboard()});
+      const orderId = await createOrder(uid,'popularity',`${state.customPP.toLocaleString()} PP (Boshqa)`,state.customPrice,state.customPrice,state.customGameId,nik,null);
+      const newBal = await getBalance(uid);
+      clearState(uid);
+      const raxmatPath = path.join(__dirname, 'raxmat.jpg');
+      const confirmTxt = `✅ <b>Buyurtma qabul qilindi!</b>\n\n📦 #${orderId}\n⭐ Popularity: <b>${state.customPP.toLocaleString()} PP</b>\n🆔 ID: <code>${state.customGameId}</code>\n👤 Nik: <b>${nik}</b>\n💰 To'langan: <b>${fmt(state.customPrice)}</b>\n💳 Qolgan: <b>${fmt(newBal)}</b>\n\n⏳ <b>Admin tasdig'ini kuting (5-15 daqiqa)</b>`;
+      try {
+        if(fs.existsSync(raxmatPath)) {
+          await bot.sendPhoto(chatId, fs.createReadStream(raxmatPath), {caption:confirmTxt, parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu',callback_data:'back_main'}]]}});
+        } else {
+          await bot.sendMessage(chatId, confirmTxt, {parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu',callback_data:'back_main'}]]}});
+        }
+      } catch(e) {
+        await bot.sendMessage(chatId, confirmTxt, {parse_mode:'HTML', reply_markup:{inline_keyboard:[[{text:'🏠 Bosh menyu',callback_data:'back_main'}]]}});
+      }
+      const fromUser = from.username?`@${from.username}`:from.first_name;
+      for(const adminId of ADMIN_IDS) {
+        await bot.sendMessage(adminId,
+          `🛒 <b>Yangi buyurtma #${orderId}</b>\n\n👤 ${fromUser} (${uid})\n⭐ <b>Popularity — ${state.customPP.toLocaleString()} PP (Boshqa)</b>\n🆔 ID: <code>${state.customGameId}</code>\n👤 Nik: <b>${nik}</b>\n💰 <b>${fmt(state.customPrice)}</b>`,
+          {parse_mode:'HTML',reply_markup:aordBtn(orderId)}
+        );
+      }
+      return;
+    }
+
+    if(state.step==='popularity_custom_pp') {
+      if(!text) return;
+      const ppAmount = parseInt(text.trim().replace(/[\s,]/g,''));
+      if(isNaN(ppAmount)||ppAmount<1000) return bot.sendMessage(chatId,'❌ Minimum 1,000 PP kiriting!');
+      if(ppAmount>1000000) return bot.sendMessage(chatId,'❌ Maksimum 1,000,000 PP kiriting!');
+      // Narx hisoblash: 20K PP = 20,000 so'm, ya'ni 1 PP = 1 so'm
+      const customPrice = ppAmount;
+      const bal = await getBalance(uid);
+      setState(uid, {step:'popularity_custom_confirm', customPP: ppAmount, customPrice, finalPrice: customPrice});
+      const insufficient = bal < customPrice;
+      const txt = `⭐ <b>Boshqa PP</b>\n\n📊 PP miqdori: <b>${ppAmount.toLocaleString()} PP</b>\n💰 Narx: <b>${fmt(customPrice)}</b>\n💳 Balansingiz: <b>${fmt(bal)}</b>`
+        + (insufficient ? `\n\n⚠️ <b>Balans yetarli emas!</b>\nYetishmaydi: <b>${fmt(customPrice-bal)}</b>` : '\n\nTasdiqlaysizmi?');
+      const btns = insufficient
+        ? [[{text:"💰 Hisobni to'ldirish",callback_data:'topup_menu'}],[{text:'🔙 Orqaga',callback_data:'back_main'}]]
+        : [[{text:'✅ Tasdiqlash',callback_data:'popularity_custom_buy'},{text:'❌ Bekor',callback_data:'back_main'}]];
+      return bot.sendMessage(chatId, txt, {parse_mode:'HTML', reply_markup:{inline_keyboard:btns}});
+    }
+
     if(state.step==='enter_promo') {
       if(!text) return;
       const code=text.trim().toUpperCase();
